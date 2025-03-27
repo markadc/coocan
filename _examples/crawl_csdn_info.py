@@ -2,7 +2,6 @@ import json
 
 from loguru import logger
 
-import coocan
 from coocan import Request, Spider
 
 
@@ -22,7 +21,7 @@ class CsdnSpider(Spider):
             "noMore": "false",
             "username": "markadc"
         }
-        yield coocan.Request(api, self.parse_page, params=params, cb_kwargs={"api": api, "params": params})
+        yield Request(api, self.parse_page, params=params, cb_kwargs={"api": api, "params": params})
 
     def parse_page(self, response, api, params):
         current_page = params["page"]
@@ -43,7 +42,7 @@ class CsdnSpider(Spider):
         # 抓取下一页
         next_page = int(current_page) + 1
         params["page"] = str(next_page)
-        yield coocan.Request(api, self.parse_page, params=params, cb_kwargs={"api": api, "params": params})
+        yield Request(api, self.parse_page, params=params, cb_kwargs={"api": api, "params": params})
 
 
 if __name__ == '__main__':
