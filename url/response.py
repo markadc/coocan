@@ -1,9 +1,8 @@
 from typing import Callable
 
+from cocoman.spider.errors import ResponseCodeError, ResponseTextError
 from parsel import Selector
 from requests import Response
-
-from cocoman.spider.errors import ResponseCodeError, ResponseTextError
 
 
 class SelectorResponse(Response):

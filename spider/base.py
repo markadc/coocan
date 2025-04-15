@@ -7,7 +7,7 @@ import coocan
 from coocan.url import Request
 
 
-class Spider:
+class AirAsyncSpider:
     start_urls = []
     max_requests = 5
 

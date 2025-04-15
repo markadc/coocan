@@ -1,1 +1,1 @@
-from coocan.spider.base import Spider
+from coocan.spider.base import AirAsyncSpider
