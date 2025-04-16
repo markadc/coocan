@@ -3,10 +3,10 @@ import json
 from loguru import logger
 
 import coocan
-from coocan import Request, AirAsyncSpider
+from coocan import Request, MiniSpider
 
 
-class CSDNSpider(AirAsyncSpider):
+class CSDNSpider(MiniSpider):
     start_urls = ['http://www.csdn.net']
     max_requests = 10
 
