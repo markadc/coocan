@@ -6,7 +6,7 @@ import coocan
 from coocan import Request, MiniSpider
 
 
-class CSDNSpider(MiniSpider):
+class CSDNDetailSpider(MiniSpider):
     start_urls = ['http://www.csdn.net']
     max_requests = 10
 
@@ -58,5 +58,5 @@ class CSDNSpider(MiniSpider):
 
 
 if __name__ == '__main__':
-    s = CSDNSpider()
+    s = CSDNDetailSpider()
     s.go()
