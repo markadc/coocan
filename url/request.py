@@ -17,5 +17,10 @@ class Request:
         self.cb_kwargs = cb_kwargs or {}
 
     async def send(self):
-        response = await cli.get(self.url, params=self.params, headers=self.headers, timeout=self.timeout)
+        if (self.data and self.json) is None:
+            response = await cli.get(self.url, params=self.params, headers=self.headers, timeout=self.timeout)
+        elif self.data or self.json:
+            response = await cli.post(self.url, params=self.params, headers=self.headers, data=self.data, json=self.json, timeout=self.timeout)
+        else:
+            raise Exception("仅支持 GET 和 POST 请求")
         return response

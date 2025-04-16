@@ -37,7 +37,7 @@ class SelectorResponse(Response):
         if self.status_code not in codes:
             raise ResponseCodeError("{} not in {}".format(self.status_code, codes))
 
-    def raise_for_text(self, validate: Callable[[str], bool] = None):
+    def raise_for_text(self, validate: Callable[[str], bool]):
         if validate(self.text) is False:
             raise ResponseTextError("not ideal text")
 
