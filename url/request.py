@@ -6,7 +6,7 @@ cli = httpx.AsyncClient()
 
 
 class Request:
-    def __init__(self, url, callback: Callable = None, params=None, headers=None, data=None, json=None, timeout=None, cb_kwargs=None):
+    def __init__(self, url: str, callback: Callable = None, params=None, headers=None, data=None, json=None, timeout=None, cb_kwargs=None):
         self.url = url
         self.callback = callback
         self.params = params

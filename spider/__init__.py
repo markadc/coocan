@@ -1,1 +1,1 @@
-from coocan.spider.base import MiniSpider
+from coocan.spider.base import MiniSpider, IgnoreRequest

@@ -1,15 +1,15 @@
 from typing import Callable
 
 from cocoman.spider.errors import ResponseCodeError, ResponseTextError
+from httpx import Response
 from parsel import Selector
-from requests import Response
 
 
 class SelectorResponse(Response):
     """可以使用Xpath、CSS"""
 
     def __init__(self, response: Response):
-        super().__init__()
+        super().__init__(response.status_code)
         self.__dict__.update(response.__dict__)
         self.selector = Selector(text=response.text)
 
