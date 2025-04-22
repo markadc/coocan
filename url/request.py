@@ -1,3 +1,4 @@
+import time
 from typing import Callable
 
 import httpx
@@ -6,7 +7,7 @@ cli = httpx.AsyncClient()
 
 
 class Request:
-    def __init__(self, url: str, callback: Callable = None, params=None, headers=None, data=None, json=None, timeout=None, cb_kwargs=None):
+    def __init__(self, url: str, callback: Callable = None, params=None, headers=None, data=None, json=None, timeout=None, cb_kwargs=None, priority=None):
         self.url = url
         self.callback = callback
         self.params = params
@@ -15,6 +16,7 @@ class Request:
         self.json = json
         self.timeout = timeout
         self.cb_kwargs = cb_kwargs or {}
+        self.priority = priority or time.time()
 
     async def send(self):
         if (self.data and self.json) is None:
@@ -24,3 +26,6 @@ class Request:
         else:
             raise Exception("仅支持 GET 和 POST 请求")
         return response
+
+    def __lt__(self, other):
+        return self.priority < other.priority
