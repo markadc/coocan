@@ -47,13 +47,13 @@ class MiniSpider:
     def handle_callback_excetpion(self, e: Exception, request: Request, response: Response):
         logger.error("{} `回调`时出现异常 | {} | {} | {}".format(response.status_code, e, request.callback.__name__, request.url))
 
-    async def worker(self, queue, semaphore):
+    async def worker(self, queue: asyncio.PriorityQueue, semaphore: asyncio.Semaphore):
         """工作协程，从队列中获取请求并处理"""
         while True:
-            request: Request = await queue.get()
+            req: Request = await queue.get()
 
             # 结束信号
-            if request is None:
+            if req.url == "":
                 break
 
             # 控制并发
@@ -61,45 +61,45 @@ class MiniSpider:
                 for i in range(self.max_retry_times + 1):
                     # 进入了重试
                     if i > 0:
-                        logger.debug("正在重试第{}次... {}".format(i, request.url))
+                        logger.debug("正在重试第{}次... {}".format(i, req.url))
 
                     # 开始请求...
                     try:
-                        self.middleware(request)
-                        response = await request.send()
+                        self.middleware(req)
+                        resp = await req.send()
 
                     # 请求失败
                     except Exception as e:
                         try:
-                            result = self.handle_request_excetpion(e, request)
+                            result = self.handle_request_excetpion(e, req)
                             if isinstance(result, Request):
                                 await queue.put(result)
                                 break
                         except IgnoreRequest as e:
-                            logger.debug("{} 忽略请求 {}".format(e, request.url))
+                            logger.debug("{} 忽略请求 {}".format(e, req.url))
                             break
                         except Exception as e:
-                            logger.error("`处理异常函数`异常了 | {} | {}".format(e, request.url))
+                            logger.error("`处理异常函数`异常了 | {} | {}".format(e, req.url))
 
                     # 请求成功
                     else:
                         # 校验响应
                         try:
-                            self.validator(response)
+                            self.validator(resp)
                         except IgnoreResponse as e:
-                            logger.debug("{} 忽略响应 {}".format(e, request.url))
+                            logger.debug("{} 忽略响应 {}".format(e, req.url))
                             break
                         except Exception as e:
-                            logger.error("`校验器`函数异常了 | {} | {}".format(e, request.url))
+                            logger.error("`校验器`函数异常了 | {} | {}".format(e, req.url))
 
                         # 进入回调
                         try:
-                            cached = request.callback(Response(response), **request.cb_kwargs)
+                            cached = req.callback(Response(resp), **req.cb_kwargs)
                             if isinstance(cached, Iterator):
                                 for next_request in cached:
                                     await queue.put(next_request)  # 把后续请求加入队列
                         except Exception as e:
-                            self.handle_callback_excetpion(e, request, response)
+                            self.handle_callback_excetpion(e, req, resp)
                         finally:
                             break
 
@@ -107,7 +107,7 @@ class MiniSpider:
 
     async def run(self):
         """爬取入口"""
-        queue = asyncio.Queue()
+        queue = asyncio.PriorityQueue()
         semaphore = asyncio.Semaphore(self.max_requests)
 
         # 工作协程启动...
@@ -125,7 +125,7 @@ class MiniSpider:
 
         # ...停止工作协程
         for _ in range(self.max_requests):
-            await queue.put(None)
+            await queue.put(Request(url=""))
 
         # 等待所有工作协程完成
         await asyncio.gather(*workers)
