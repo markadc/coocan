@@ -23,6 +23,14 @@
 - 2025-4-22
     - 请求可以指定优先级（priority）
 
+<br>
+
+- 2025-4-23
+    - 可以设置请求延迟（如果你想放慢爬虫速度的话）
+        - delay
+    - 默认启动随机Ua
+        - enable_random_ua
+
 ## 安装
 
 `pip install coocan`

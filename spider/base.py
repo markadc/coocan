@@ -3,6 +3,7 @@ from collections.abc import Iterator
 
 from loguru import logger
 
+from coocan.gen import gen_random_ua
 from coocan.url import Request, Response
 
 
@@ -20,7 +21,9 @@ class MiniSpider:
     start_urls = []
     max_requests = 5
     max_retry_times = 3
-    default_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36 Edg/134.0.0.0"
+    enable_random_ua = True
+    headers_extra_field = {}
+    delay = 0
 
     def start_requests(self):
         """初始请求"""
@@ -29,8 +32,13 @@ class MiniSpider:
             yield Request(url, self.parse)
 
     def middleware(self, request: Request):
-        """默认只设置Ua"""
-        request.headers.setdefault("User-Agent", self.default_ua)
+        # 随机Ua
+        if self.enable_random_ua is True:
+            request.headers.setdefault("User-Agent", gen_random_ua())
+
+        # 为 headers 补充额外字段
+        if self.headers_extra_field:
+            request.headers.update(self.headers_extra_field)
 
     def validator(self, response: Response):
         """校验响应"""
@@ -66,6 +74,7 @@ class MiniSpider:
                     # 开始请求...
                     try:
                         self.middleware(req)
+                        await asyncio.sleep(self.delay)
                         resp = await req.send()
 
                     # 请求失败
