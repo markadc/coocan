@@ -4,7 +4,7 @@ from coocan import Request, Response, MiniSpider
 class ViewLocalIpSpider(MiniSpider):
     start_urls = ['https://httpbin.org/ip']
     max_requests = 5
-    delay = 2
+    delay = 5
 
     def start_requests(self):
         for _ in range(10):
@@ -14,8 +14,7 @@ class ViewLocalIpSpider(MiniSpider):
         request.headers["Referer"] = "https://httpbin.org"
 
     def parse(self, response: Response):
-        print(response.status_code)
-        print(response.json())
+        print(response.status_code, response.json())
 
 
 if __name__ == '__main__':
