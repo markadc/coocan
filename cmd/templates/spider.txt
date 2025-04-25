@@ -1,7 +1,7 @@
 from coocan import Request, Response, MiniSpider
 
 
-class Spider(MiniSpider):
+class {SpiderClassName}(MiniSpider):
     start_urls = ['https://github.com/markadc/coocan']
     max_requests = 10
 
@@ -10,3 +10,8 @@ class Spider(MiniSpider):
 
     def parse(self, response: Response):
         pass
+
+
+if __name__ == '__main__':
+    s = {SpiderClassName}()
+    s.go()
