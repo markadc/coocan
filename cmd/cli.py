@@ -37,21 +37,21 @@ def main(ctx):
 
 @main.command()
 @click.option('-s', '--spider', required=True, help='爬虫文件名字')
-def new(spider):
+def new(spider: str):
     """新建"""
     if not re.search("^[a-zA-Z0-9_]*$", spider):
         click.echo("只支持字母、数字、下划线")
         return
 
-    pascal = snake_to_pascal(spider).rstrip("spider")
-    if not pascal.endswith("Spider"):
-        pascal += "Spider"
+    spider_class_name = snake_to_pascal(spider)
+    if not spider_class_name.lower().endswith("spider"):
+        spider_class_name += "Spider"
 
     try:
         template_path = TEMPLATE_DIR / "spider.txt"
         with open(template_path, 'r') as f:
             text = f.read()
-            spider_py_text = text.replace("{SpiderClassName}", pascal)
+            spider_py_text = text.replace("{SpiderClassName}", spider_class_name)
 
         py_file = "{}.py".format(spider)
         if os.path.exists(py_file):
