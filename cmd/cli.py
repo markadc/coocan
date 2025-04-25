@@ -1,9 +1,10 @@
+import os
 import re
 from pathlib import Path
 
 import click
 
-TEMPLATE_DIR = Path(__file__).parent / "templates"
+TEMPLATE_DIR = Path(__file__).parent.parent / 'templates'
 
 help_info = """
  ██████╗ ██████╗  ██████╗  ██████╗ █████╗ ███╗   ██╗
@@ -26,7 +27,7 @@ def snake_to_pascal(snake_str: str):
     return pascal_str
 
 
-@click.group(invoke_without_command=True)  # 允许无子命令调用
+@click.group(invoke_without_command=True)
 @click.pass_context
 def main(ctx):
     if ctx.invoked_subcommand is None:
@@ -42,7 +43,7 @@ def new(spider):
         click.echo("只支持字母、数字、下划线")
         return
 
-    pascal = snake_to_pascal(spider)
+    pascal = snake_to_pascal(spider).rstrip("spider")
     if not pascal.endswith("Spider"):
         pascal += "Spider"
 
@@ -52,7 +53,12 @@ def new(spider):
             text = f.read()
             spider_py_text = text.replace("{SpiderClassName}", pascal)
 
-        with open("{}.py".format(spider), 'w') as f:
+        py_file = "{}.py".format(spider)
+        if os.path.exists(py_file):
+            click.echo("File {} already exists".format(py_file))
+            return
+
+        with open(py_file, 'w') as f:
             f.write(spider_py_text)
 
         click.echo("Success")

@@ -9,7 +9,8 @@ class {SpiderClassName}(MiniSpider):
         request.headers["Referer"] = "https://github.com"
 
     def parse(self, response: Response):
-        pass
+        print(response.status_code)
+        print(response.get_one("//title/text()"))
 
 
 if __name__ == '__main__':
