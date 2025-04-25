@@ -16,10 +16,6 @@ help_info = """
 """
 
 
-def show_help_info():
-    print(help_info)
-
-
 def snake_to_pascal(snake_str: str):
     """小蛇变成大驼峰"""
     words = snake_str.split('_')
@@ -31,7 +27,7 @@ def snake_to_pascal(snake_str: str):
 @click.pass_context
 def main(ctx):
     if ctx.invoked_subcommand is None:
-        show_help_info()
+        print(help_info)
         click.echo("cc new -s <spider_file_name>")
 
 
