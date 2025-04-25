@@ -31,6 +31,13 @@
     - 默认启动随机Ua
         - enable_random_ua
 
+<br>
+
+- 2025-4-25
+    - 实现 `cc` 命令行工具
+        - 在当前目录下新建一个爬虫
+            - cc new -s <spider_file_name>
+
 ## 安装
 
 `pip install coocan`
