@@ -4,39 +4,30 @@
 
 # 更新记录
 
-- 2025-4-18
-    - 响应对象自带`Xpath`、`CSS`解析
-    - 加入请求重试机制、请求异常时可以使用回调函数 `handle_request_excetpion`
-
-<br>
-
-- 2025-4-21
-    - 请求异常时触发 `handle_request_excetpion`
-        - 若抛出 `IgnoreRequest` 异常，表示抛弃这个请求（不再重试）
-        - 若返回了新的 `Request` 则表示旧请求丢弃，新请求进入请求队列
-    - 加入校验器 `validator`（用来提前检查响应内容，可以选择不进入回调函数）
-        - 若抛出 `IgnoreResponse` 异常，则不进入回调函数
-    - `callback` 异常时触发 `handle_callback_excetpion`
-
-<br>
+- 2025-4-25
+- 实现 `coocan` 命令行工具
+    - 在当前目录下新建一个爬虫
+        - coocan new -s <spider_file_name>
+- 2025-4-23
+- 可以设置请求延迟（如果你想放慢爬虫速度的话）
+    - delay
+- 默认启动随机Ua
+    - enable_random_ua
 
 - 2025-4-22
-    - 请求可以指定优先级（priority）
+- 请求可以指定优先级（priority）
 
-<br>
+- 2025-4-21
+- 请求异常时触发 `handle_request_excetpion`
+    - 若抛出 `IgnoreRequest` 异常，表示抛弃这个请求（不再重试）
+    - 若返回了新的 `Request` 则表示旧请求丢弃，新请求进入请求队列
+- 加入校验器 `validator`（用来提前检查响应内容，可以选择不进入回调函数）
+    - 若抛出 `IgnoreResponse` 异常，则不进入回调函数
+- `callback` 异常时触发 `handle_callback_excetpion`
 
-- 2025-4-23
-    - 可以设置请求延迟（如果你想放慢爬虫速度的话）
-        - delay
-    - 默认启动随机Ua
-        - enable_random_ua
-
-<br>
-
-- 2025-4-25
-    - 实现 `coocan` 命令行工具
-        - 在当前目录下新建一个爬虫
-            - coocan new -s <spider_file_name>
+- 2025-4-18
+- 响应对象自带`Xpath`、`CSS`解析
+- 加入请求重试机制、请求异常时可以使用回调函数 `handle_request_excetpion`
 
 ## 安装
 
