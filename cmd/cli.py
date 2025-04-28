@@ -28,7 +28,7 @@ def snake_to_pascal(snake_str: str):
 def main(ctx):
     if ctx.invoked_subcommand is None:
         print(help_info)
-        click.echo("cc new -s <spider_file_name>")
+        click.echo("coocan new -s <spider_file_name>")
 
 
 @main.command()

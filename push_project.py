@@ -2,6 +2,7 @@ import os
 import sys
 
 msg = sys.argv[1] if len(sys.argv) == 2 else "Auto Submit"
+msg = sys.argv[1] if len(sys.argv) == 2 else "Fix CMD Name"
 
 cmd1 = "git add ."
 cmd2 = 'git commit -m "{}"'.format(msg)
