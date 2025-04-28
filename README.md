@@ -4,8 +4,7 @@
 
 # 更新记录
 
--2025-4-28
-
+- 2025-4-28
 - 新增 `process_item` 方法，用来处理数据
     - 示例位于 coocan/_examples/recv_item
 
