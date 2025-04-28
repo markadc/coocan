@@ -24,6 +24,7 @@ class MiniSpider:
     enable_random_ua = True
     headers_extra_field = {}
     delay = 0
+    item_speed = 100
 
     def start_requests(self):
         """初始请求"""
@@ -55,10 +56,10 @@ class MiniSpider:
     def handle_callback_excetpion(self, e: Exception, request: Request, response: Response):
         logger.error("{} `回调`时出现异常 | {} | {} | {}".format(response.status_code, e, request.callback.__name__, request.url))
 
-    async def worker(self, queue: asyncio.PriorityQueue, semaphore: asyncio.Semaphore):
+    async def request_task(self, q1: asyncio.PriorityQueue, q2: asyncio.Queue, semaphore: asyncio.Semaphore):
         """工作协程，从队列中获取请求并处理"""
         while True:
-            req: Request = await queue.get()
+            req: Request = await q1.get()
 
             # 结束信号
             if req.url == "":
@@ -82,7 +83,7 @@ class MiniSpider:
                         try:
                             result = self.handle_request_excetpion(e, req)
                             if isinstance(result, Request):
-                                await queue.put(result)
+                                await q1.put(result)
                                 break
                         except IgnoreRequest as e:
                             logger.debug("{} 忽略请求 {}".format(e, req.url))
@@ -105,39 +106,72 @@ class MiniSpider:
                         try:
                             cached = req.callback(Response(resp), **req.cb_kwargs)
                             if isinstance(cached, Iterator):
-                                for next_request in cached:
-                                    await queue.put(next_request)  # 把后续请求加入队列
+                                for c in cached:
+                                    if isinstance(c, Request):
+                                        await q1.put(c)  # 把后续请求加入队列
+                                    elif isinstance(c, dict):
+                                        await q2.put(c)
+                                    else:
+                                        logger.warning("Please yield `Request` or `dict` Not {}".format(c))
                         except Exception as e:
                             self.handle_callback_excetpion(e, req, resp)
                         finally:
                             break
 
-            queue.task_done()
+            q1.task_done()
+
+    async def item_task(self, q2: asyncio.Queue):
+        while True:
+            item = await q2.get()
+            if item is None:
+                break
+            self.process_item(item)
+            q2.task_done()
+
+    def process_item(self, item: dict):
+        logger.success(item)
 
     async def run(self):
         """爬取入口"""
-        queue = asyncio.PriorityQueue()
+        request_queue = asyncio.PriorityQueue()
+        item_queue = asyncio.Queue()
         semaphore = asyncio.Semaphore(self.max_requests)
 
-        # 工作协程启动...
-        workers = [
-            asyncio.create_task(self.worker(queue, semaphore))
+        # 处理请求...
+        request_tasks = [
+            asyncio.create_task(self.request_task(request_queue, item_queue, semaphore))
             for _ in range(self.max_requests)
         ]
 
-        # 将初始请求加入队列
+        # 处理数据...
+        item_tasks = [
+            asyncio.create_task(self.item_task(item_queue))
+            for _ in range(self.item_speed)
+        ]
+
+        # 发送最开始的请求
         for req in self.start_requests():
-            await queue.put(req)
+            await request_queue.put(req)
 
-        # 等待队列中的所有任务完成
-        await queue.join()
+        # 等待所有请求处理完成
+        await request_queue.join()
+        logger.debug("处理请求已结束")
 
-        # ...停止工作协程
+        # 等待所有数据处理完成
+        await item_queue.join()
+        logger.debug("处理数据已结束")
+
+        # 退出请求任务
         for _ in range(self.max_requests):
-            await queue.put(Request(url=""))
+            await request_queue.put(Request(url=""))
+
+        # 退出数据任务
+        for _ in range(self.item_speed):
+            await item_queue.put(None)
 
         # 等待所有工作协程完成
-        await asyncio.gather(*workers)
+        await asyncio.gather(*request_tasks)
+        await asyncio.gather(*item_tasks)
 
     def go(self):
         asyncio.run(self.run())
