@@ -1,7 +1,7 @@
 from coocan import Request, Response, MiniSpider
 
 
-class ViewLocalIpSpider(MiniSpider):
+class ViewLocalIPSpider(MiniSpider):
     start_urls = ["https://httpbin.org/ip"]
     max_requests = 5
     delay = 5
@@ -18,5 +18,5 @@ class ViewLocalIpSpider(MiniSpider):
 
 
 if __name__ == '__main__':
-    s = ViewLocalIpSpider()
+    s = ViewLocalIPSpider()
     s.go()
