@@ -56,7 +56,7 @@ from coocan import Request, MiniSpider
 
 
 class CSDNDetailSpider(MiniSpider):
-    start_urls = ['http://www.csdn.net']
+    start_urls = ["http://www.csdn.net"]
     max_requests = 10
 
     def middleware(self, request: Request):
