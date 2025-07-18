@@ -10,7 +10,7 @@
 
 ## 命令
 
-- coocan new -s <spider_file_name>
+`coocan new -s <spider_file_name>`
 
 ![alt text](cmd.png)
 
