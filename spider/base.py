@@ -9,11 +9,13 @@ from coocan.url import Request, Response
 
 class IgnoreRequest(Exception):
     """忽略这个请求，不再重试"""
+
     pass
 
 
 class IgnoreResponse(Exception):
     """忽略这个响应，不进回调"""
+
     pass
 
 
@@ -47,16 +49,26 @@ class MiniSpider:
 
     def parse(self, response: Response):
         """默认回调函数"""
-        raise NotImplementedError("没有定义回调函数 {}.parse ".format(self.__class__.__name__))
+        raise NotImplementedError(
+            "没有定义回调函数 {}.parse ".format(self.__class__.__name__)
+        )
 
     def handle_request_excetpion(self, e: Exception, request: Request):
         """处理请求时的异常"""
         logger.error("{} {}".format(type(e).__name__, request.url))
 
-    def handle_callback_excetpion(self, e: Exception, request: Request, response: Response):
-        logger.error("{} `回调`时出现异常 | {} | {} | {}".format(response.status_code, e, request.callback.__name__, request.url))
+    def handle_callback_excetpion(
+        self, e: Exception, request: Request, response: Response
+    ):
+        logger.error(
+            "{} `回调`时出现异常 | {} | {} | {}".format(
+                response.status_code, e, request.callback.__name__, request.url
+            )
+        )
 
-    async def request_task(self, q1: asyncio.PriorityQueue, q2: asyncio.Queue, semaphore: asyncio.Semaphore):
+    async def request_task(
+        self, q1: asyncio.PriorityQueue, q2: asyncio.Queue, semaphore: asyncio.Semaphore
+    ):
         """工作协程，从队列中获取请求并处理"""
         while True:
             req: Request = await q1.get()
@@ -89,7 +101,9 @@ class MiniSpider:
                             logger.debug("{} 忽略请求 {}".format(e, req.url))
                             break
                         except Exception as e:
-                            logger.error("`处理异常函数`异常了 | {} | {}".format(e, req.url))
+                            logger.error(
+                                "`处理异常函数`异常了 | {} | {}".format(e, req.url)
+                            )
 
                     # 请求成功
                     else:
@@ -100,7 +114,9 @@ class MiniSpider:
                             logger.debug("{} 忽略响应 {}".format(e, req.url))
                             break
                         except Exception as e:
-                            logger.error("`校验器`函数异常了 | {} | {}".format(e, req.url))
+                            logger.error(
+                                "`校验器`函数异常了 | {} | {}".format(e, req.url)
+                            )
 
                         # 进入回调
                         try:
@@ -112,7 +128,9 @@ class MiniSpider:
                                     elif isinstance(c, dict):
                                         await q2.put(c)
                                     else:
-                                        logger.warning("Please yield `Request` or `dict` Not {}".format(c))
+                                        logger.warning(
+                                            f"Please yield `Request` or `dict` Not {repr(c)}"
+                                        )
                         except Exception as e:
                             self.handle_callback_excetpion(e, req, resp)
                         finally:

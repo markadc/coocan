@@ -4,7 +4,7 @@ from pathlib import Path
 
 import click
 
-TEMPLATE_DIR = Path(__file__).parent.parent / 'templates'
+TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
 help_info = """
  ██████╗ ██████╗  ██████╗  ██████╗ █████╗ ███╗   ██╗
@@ -18,8 +18,8 @@ help_info = """
 
 def snake_to_pascal(snake_str: str):
     """小蛇变成大驼峰"""
-    words = snake_str.split('_')
-    pascal_str = ''.join(word.capitalize() for word in words)
+    words = snake_str.split("_")
+    pascal_str = "".join(word.capitalize() for word in words)
     return pascal_str
 
 
@@ -32,7 +32,7 @@ def main(ctx):
 
 
 @main.command()
-@click.option('-s', '--spider', required=True, help='爬虫文件名字')
+@click.option("-s", "--spider", required=True, help="爬虫文件名字")
 def new(spider: str):
     """新建"""
     if not re.search("^[a-zA-Z0-9_]*$", spider):
@@ -45,7 +45,7 @@ def new(spider: str):
 
     try:
         template_path = TEMPLATE_DIR / "spider.txt"
-        with open(template_path, 'r') as f:
+        with open(template_path, "r") as f:
             text = f.read()
             spider_py_text = text.replace("{SpiderClassName}", spider_class_name)
 
@@ -54,7 +54,7 @@ def new(spider: str):
             click.echo("Failed because file {} already exists".format(py_file))
             return
 
-        with open(py_file, 'w') as f:
+        with open(py_file, "w") as f:
             f.write(spider_py_text)
 
         click.echo("Success create {}".format(py_file))
@@ -64,5 +64,5 @@ def new(spider: str):
         raise click.ClickException("Failed")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

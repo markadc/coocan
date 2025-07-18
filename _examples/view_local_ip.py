@@ -17,6 +17,6 @@ class ViewLocalIPSpider(MiniSpider):
         print(response.status_code, response.json())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     s = ViewLocalIPSpider()
     s.go()

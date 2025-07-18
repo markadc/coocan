@@ -6,7 +6,7 @@ from coocan import Request, MiniSpider
 
 
 class CSDNSpider(MiniSpider):
-    start_urls = ['http://www.csdn.net']
+    start_urls = ["http://www.csdn.net"]
     max_requests = 10
 
     def middleware(self, request: Request):
@@ -19,9 +19,14 @@ class CSDNSpider(MiniSpider):
             "size": "20",
             "businessType": "lately",
             "noMore": "false",
-            "username": "markadc"
+            "username": "markadc",
         }
-        yield Request(api, self.parse_page, params=params, cb_kwargs={"api": api, "params": params})
+        yield Request(
+            api,
+            self.parse_page,
+            params=params,
+            cb_kwargs={"api": api, "params": params},
+        )
 
     def parse_page(self, response, api, params):
         current_page = params["page"]
@@ -42,9 +47,14 @@ class CSDNSpider(MiniSpider):
         # 抓取下一页
         next_page = int(current_page) + 1
         params["page"] = str(next_page)
-        yield Request(api, self.parse_page, params=params, cb_kwargs={"api": api, "params": params})
+        yield Request(
+            api,
+            self.parse_page,
+            params=params,
+            cb_kwargs={"api": api, "params": params},
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     s = CSDNSpider()
     s.go()

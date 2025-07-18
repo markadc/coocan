@@ -1,7 +1,7 @@
 import os
 import sys
 
-msg = sys.argv[1] if len(sys.argv) == 2 else "修复一些BUG"
+msg = sys.argv[1] if len(sys.argv) == 2 else "fmt"
 
 cmd1 = "git add ."
 cmd2 = 'git commit -m "{}"'.format(msg)
