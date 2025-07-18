@@ -1,8 +1,9 @@
 from typing import Callable
 
-from cocoman.spider.errors import ResponseCodeError, ResponseTextError
 from httpx import Response
 from parsel import Selector
+
+from coocan.url.errs import ResponseCodeError, ResponseTextError
 
 
 class SelectorResponse(Response):
@@ -43,8 +44,8 @@ class SelectorResponse(Response):
 
     def raise_has_text(self, text: str):
         """有此文本则抛出异常"""
-        assert self.text.find(text) == -1, ResponseTextError("has text: {}".format(text))
+        assert self.text.find(text) == -1, ResponseTextError(f"has text: {text}")
 
     def raise_no_text(self, text: str):
         """无此文本则抛出异常"""
-        assert self.text.find(text) != -1, ResponseTextError("no text: {}".format(text))
+        assert self.text.find(text) != -1, ResponseTextError(f"no text: {text}")
