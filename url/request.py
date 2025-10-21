@@ -38,11 +38,11 @@ class Request:
         return httpx.AsyncClient(proxy=self.proxy)
 
     async def send(self):
-        if (self.data and self.json) is None:
+        if self.data is None and self.json is None:
             response = await self.client.get(
                 self.url, params=self.params, headers=self.headers, timeout=self.timeout
             )
-        elif self.data or self.json:
+        elif self.data is not None or self.json is not None:
             response = await self.client.post(
                 self.url,
                 params=self.params,

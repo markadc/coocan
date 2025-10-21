@@ -53,11 +53,11 @@ class MiniSpider:
             "没有定义回调函数 {}.parse ".format(self.__class__.__name__)
         )
 
-    def handle_request_excetpion(self, e: Exception, request: Request):
+    def handle_request_exception(self, e: Exception, request: Request):
         """处理请求时的异常"""
         logger.error("{} {}".format(type(e).__name__, request.url))
 
-    def handle_callback_excetpion(
+    def handle_callback_exception(
         self, e: Exception, request: Request, response: Response
     ):
         logger.error(
@@ -93,7 +93,7 @@ class MiniSpider:
                     # 请求失败
                     except Exception as e:
                         try:
-                            result = self.handle_request_excetpion(e, req)
+                            result = self.handle_request_exception(e, req)
                             if isinstance(result, Request):
                                 await q1.put(result)
                                 break
@@ -132,7 +132,7 @@ class MiniSpider:
                                             f"Please yield `Request` or `dict` Not {repr(c)}"
                                         )
                         except Exception as e:
-                            self.handle_callback_excetpion(e, req, resp)
+                            self.handle_callback_exception(e, req, resp)
                         finally:
                             break
 
