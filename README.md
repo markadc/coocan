@@ -8,11 +8,11 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/coocan.svg)](https://pypi.org/project/coocan/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[安装](#安装) •
-[快速开始](#快速开始) •
-[功能特性](#功能特性) •
-[示例](#示例) •
-[文档](#文档)
+[安装](#-安装) •
+[快速开始](#-快速开始) •
+[功能特性](#-功能特性) •
+[示例](#-示例) •
+[文档](#-文档)
 
 ![Demo](demo.gif)
 
