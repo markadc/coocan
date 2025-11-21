@@ -51,13 +51,13 @@ def new(spider: str):
 
         py_file = "{}.py".format(spider)
         if os.path.exists(py_file):
-            click.echo("Failed because file {} already exists".format(py_file))
+            click.echo("❌ Failed because file {} already exists".format(py_file))
             return
 
         with open(py_file, "w") as f:
             f.write(spider_py_text)
 
-        click.echo("Success create {}".format(py_file))
+        click.echo("✅ Success create {}".format(py_file))
 
     except Exception as e:
         click.echo(str(e))
