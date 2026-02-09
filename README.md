@@ -111,18 +111,23 @@ python my_spider.py
 
 ### 核心功能
 
-| 功能           | 说明                            |
-| -------------- | ------------------------------- |
-| **异步请求**   | 基于 httpx 的异步 HTTP 客户端   |
-| **智能重试**   | 自动重试失败的请求              |
-| **优先级队列** | 支持请求优先级控制              |
-| **代理支持**   | 轻松配置 HTTP/HTTPS 代理        |
-| **请求延迟**   | 可配置请求间隔，避免被封        |
-| **随机 UA**    | 自动随机 User-Agent             |
-| **中间件**     | 支持请求预处理                  |
-| **数据管道**   | `process_item` 方法处理爬取数据 |
-| **异常处理**   | 完善的异常处理机制              |
-| **选择器**     | 内置 XPath 和 CSS 选择器        |
+| 功能           | 说明                                    |
+| -------------- | --------------------------------------- |
+| **异步请求**   | 基于 httpx 的异步 HTTP 客户端           |
+| **智能重试**   | 自动重试失败的请求                      |
+| **优先级队列** | 支持请求优先级控制                      |
+| **代理支持**   | 轻松配置 HTTP/HTTPS 代理                |
+| **请求延迟**   | 支持固定延迟或随机延迟范围              |
+| **随机 UA**    | 自动随机 User-Agent                     |
+| **中间件**     | 支持请求预处理                          |
+| **数据管道**   | `process_item` 方法处理爬取数据         |
+| **异常处理**   | 完善的异常处理机制                      |
+| **选择器**     | 内置 XPath 和 CSS 选择器                |
+| **爬取统计**   | 自动统计请求成功/失败次数、耗时等       |
+| **URL 去重**   | 可选的 URL 去重功能，避免重复请求       |
+| **生命周期**   | `spider_opened` / `spider_closed` 钩子  |
+| **优雅退出**   | 支持 Ctrl+C 优雅退出                    |
+| **多 HTTP 方法** | 支持 GET/POST/PUT/DELETE/PATCH 等     |
 
 ### 类属性配置
 
@@ -131,9 +136,10 @@ class MySpider(MiniSpider):
     start_urls = ["https://example.com"]  # 起始 URL
     max_requests = 20                      # 最大并发数
     max_retry_times = 3                    # 最大重试次数
-    delay = 0                              # 请求延迟（秒）
+    delay = 0                              # 请求延迟（秒），支持元组如 (1, 3) 表示 1-3 秒随机延迟
     enable_random_ua = True                # 启用随机 User-Agent
-    timeout = 6                            # 请求超时时间（秒）
+    enable_duplicate_filter = False        # 启用 URL 去重
+    item_speed = 100                       # 数据处理协程数
 ```
 
 ---
@@ -177,7 +183,7 @@ class ProxySpider(MiniSpider):
         print(response.text)
 ```
 
-更多示例请查看 [`_examples/`](_examples/) 目录：
+更多示例请查看 [`coocan/_examples/`](coocan/_examples/) 目录：
 
 - `crawl_csdn_list.py` - 爬取 CSDN 文章列表
 - `crawl_csdn_detail.py` - 爬取 CSDN 文章详情
@@ -270,17 +276,16 @@ if __name__ == '__main__':
 Request(
     url: str,                    # 请求 URL
     callback=None,               # 回调函数
-    method: str = "GET",         # 请求方法
+    method: str = None,          # 请求方法 (GET/POST/PUT/DELETE/PATCH)，默认自动推断
     params: dict = None,         # URL 参数
-    data: dict = None,           # POST 数据
+    data: dict = None,           # POST 表单数据
     json: dict = None,           # JSON 数据
     headers: dict = None,        # 请求头
     cookies: dict = None,        # Cookies
     proxy: str = None,           # 代理地址
     timeout: int = 6,            # 超时时间
-    priority: int = 0,           # 优先级（数字越大优先级越高）
+    priority: float = None,      # 优先级（数字越小优先级越高）
     cb_kwargs: dict = None,      # 传递给回调函数的额外参数
-    validator=None,              # 响应验证器
 )
 ```
 
@@ -306,20 +311,81 @@ response.css(query)     # CSS 选择器
 | `start_requests()`                        | 生成初始请求（可选，默认使用 start_urls） |
 | `parse(response)`                         | 默认回调函数，解析响应                    |
 | `middleware(request)`                     | 请求中间件，可修改请求                    |
+| `validator(response)`                     | 验证响应是否有效                          |
 | `process_item(item)`                      | 处理爬取的数据项                          |
-| `handle_request_exception(request, exc)`  | 处理请求异常                              |
-| `handle_callback_exception(request, exc)` | 处理回调函数异常                          |
+| `spider_opened()`                         | 爬虫启动时调用                            |
+| `spider_closed()`                         | 爬虫结束时调用                            |
+| `handle_request_exception(e, request)`    | 处理请求异常                              |
+| `handle_callback_exception(e, req, resp)` | 处理回调函数异常                          |
 | `go()`                                    | 启动爬虫                                  |
+
+### 爬取统计
+
+爬虫结束时会自动输出统计信息：
+
+```
+爬虫 MySpider 结束 | 请求: 10 | 成功: 9 | 失败: 1 | 重试: 2 | 数据: 15 | 耗时: 3.25s
+```
+
+你也可以在代码中访问统计信息：
+
+```python
+class MySpider(MiniSpider):
+    def spider_closed(self):
+        print(f"成功率: {self.stats.success_count / self.stats.request_count * 100:.1f}%")
+        print(f"总耗时: {self.stats.elapsed:.2f} 秒")
+```
+
+### 生命周期钩子
+
+```python
+class MySpider(MiniSpider):
+    def spider_opened(self):
+        """爬虫启动时调用，可用于初始化资源"""
+        self.db = connect_database()
+        print("爬虫启动，数据库已连接")
+
+    def spider_closed(self):
+        """爬虫结束时调用，可用于清理资源"""
+        self.db.close()
+        print(f"爬虫结束，共爬取 {self.stats.item_count} 条数据")
+```
+
+### URL 去重
+
+启用 URL 去重可以避免重复请求同一个 URL：
+
+```python
+class MySpider(MiniSpider):
+    enable_duplicate_filter = True  # 启用 URL 去重
+
+    def start_requests(self):
+        # 即使 yield 多个相同 URL，也只会请求一次
+        for _ in range(10):
+            yield Request("https://example.com", callback=self.parse)
+```
+
+### 随机延迟
+
+支持固定延迟或随机延迟范围：
+
+```python
+class MySpider(MiniSpider):
+    delay = 2              # 固定延迟 2 秒
+    # 或
+    delay = (1, 3)         # 随机延迟 1-3 秒
+```
 
 ### 异常处理
 
 ```python
 from coocan import MiniSpider, Request
-from coocan.url.errs import IgnoreRequest, IgnoreResponse
+from coocan.spider.base import IgnoreRequest, IgnoreResponse
+from loguru import logger
 
 
 class MySpider(MiniSpider):
-    def handle_request_exception(self, request: Request, exc: Exception):
+    def handle_request_exception(self, e: Exception, request: Request):
         """处理请求异常"""
         # 抛出 IgnoreRequest 表示放弃该请求
         raise IgnoreRequest("放弃请求")
@@ -333,9 +399,9 @@ class MySpider(MiniSpider):
             # 抛出 IgnoreResponse 跳过回调
             raise IgnoreResponse("状态码异常")
 
-    def handle_callback_exception(self, request: Request, exc: Exception):
+    def handle_callback_exception(self, e: Exception, request: Request, response):
         """处理回调异常"""
-        logger.error(f"回调异常: {exc}")
+        logger.error(f"回调异常: {e}")
 ```
 
 ---
@@ -356,6 +422,20 @@ coocan --help
 
 ## 📝 更新日志
 
+### v0.7.0 (2025-2-9)
+
+- ✨ **爬取统计** - 自动统计请求成功/失败次数、重试次数、数据项数量、耗时
+- ✨ **生命周期钩子** - 新增 `spider_opened()` 和 `spider_closed()` 方法
+- ✨ **URL 去重** - 新增 `enable_duplicate_filter` 属性，可选启用 URL 去重
+- ✨ **随机延迟** - `delay` 属性支持元组，如 `delay = (1, 3)` 表示 1-3 秒随机延迟
+- ✨ **优雅退出** - 支持 Ctrl+C 优雅退出
+- ✨ **更多 HTTP 方法** - Request 支持 `method` 参数，可使用 PUT/DELETE/PATCH 等方法
+- ✨ **Cookies 支持** - Request 支持 `cookies` 参数
+- 🐛 **修复资源泄露** - 修复 HTTP 客户端未正确关闭的问题
+- 🐛 **修复响应验证** - 修复 `raise_has_text` 和 `raise_no_text` 在优化模式下失效的问题
+- ⚡ **性能优化** - Selector 延迟初始化，只有使用 xpath/css 时才解析 HTML
+- ⚡ **UA 更新** - 更新 User-Agent 浏览器版本到 Chrome 110-130
+
 ### v0.6.1 (2025-5-15)
 
 - ✨ 请求支持代理，使用 `proxy` 参数
@@ -364,7 +444,7 @@ coocan --help
 ### v0.5.0 (2025-4-28)
 
 - ✨ 新增 `process_item` 方法，用于处理数据
-  - 示例代码位于 `_examples/recv_item.py`
+  - 示例代码位于 `coocan/_examples/recv_item.py`
 
 ### v0.4.0 (2025-4-25)
 
