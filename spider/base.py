@@ -1,10 +1,15 @@
 import asyncio
+import hashlib
+import random
+import signal
+import time
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 
 from loguru import logger
 
 from coocan.gen import gen_random_ua
-from coocan.url import Request, Response
+from coocan.url import Request, Response, close_client
 
 
 class IgnoreRequest(Exception):
@@ -19,14 +24,66 @@ class IgnoreResponse(Exception):
     pass
 
 
+@dataclass
+class Stats:
+    """爬取统计信息"""
+
+    start_time: float = field(default_factory=time.time)
+    request_count: int = 0
+    success_count: int = 0
+    failed_count: int = 0
+    retry_count: int = 0
+    item_count: int = 0
+
+    @property
+    def elapsed(self) -> float:
+        return time.time() - self.start_time
+
+    def __str__(self):
+        return (
+            f"请求: {self.request_count} | "
+            f"成功: {self.success_count} | "
+            f"失败: {self.failed_count} | "
+            f"重试: {self.retry_count} | "
+            f"数据: {self.item_count} | "
+            f"耗时: {self.elapsed:.2f}s"
+        )
+
+
 class MiniSpider:
     start_urls = []
     max_requests = 5
     max_retry_times = 3
     enable_random_ua = True
     headers_extra_field = {}
-    delay = 0
+    delay: int | tuple[float, float] = 0  # 支持固定延迟或随机延迟范围
     item_speed = 100
+    enable_duplicate_filter = False  # 是否启用 URL 去重
+
+    def __init__(self):
+        self.stats = Stats()
+        self._seen_urls: set[str] = set()
+        self._stop_event = asyncio.Event()
+
+    def _get_url_fingerprint(self, request: Request) -> str:
+        """生成 URL 指纹用于去重"""
+        return hashlib.md5(request.url.encode()).hexdigest()
+
+    def _is_duplicate(self, request: Request) -> bool:
+        """检查请求是否重复"""
+        if not self.enable_duplicate_filter:
+            return False
+        fp = self._get_url_fingerprint(request)
+        if fp in self._seen_urls:
+            return True
+        self._seen_urls.add(fp)
+        return False
+
+    def _get_delay(self) -> float:
+        """获取延迟时间"""
+        if isinstance(self.delay, tuple):
+            return random.uniform(self.delay[0], self.delay[1])
+        return self.delay
 
     def start_requests(self):
         """初始请求"""
@@ -58,26 +115,53 @@ class MiniSpider:
     def handle_callback_exception(self, e: Exception, request: Request, response: Response):
         logger.error("{} `回调`时出现异常 | {} | {} | {}".format(response.status_code, e, request.callback.__name__, request.url))
 
+    def spider_opened(self):
+        """爬虫启动时调用"""
+        pass
+
+    def spider_closed(self):
+        """爬虫结束时调用"""
+        pass
+
     async def request_task(self, q1: asyncio.PriorityQueue, q2: asyncio.Queue, semaphore: asyncio.Semaphore):
         """工作协程，从队列中获取请求并处理"""
         while True:
-            req: Request = await q1.get()
+            try:
+                req: Request = await asyncio.wait_for(q1.get(), timeout=0.5)
+            except asyncio.TimeoutError:
+                if self._stop_event.is_set():
+                    break
+                continue
 
             # 结束信号
             if req.url == "":
                 break
 
+            # URL 去重
+            if self._is_duplicate(req):
+                logger.debug(f"跳过重复请求: {req.url}")
+                q1.task_done()
+                continue
+
+            self.stats.request_count += 1
+
             # 控制并发
             async with semaphore:
                 for i in range(self.max_retry_times + 1):
+                    if self._stop_event.is_set():
+                        break
+
                     # 进入了重试
                     if i > 0:
+                        self.stats.retry_count += 1
                         logger.debug("正在重试第{}次... {}".format(i, req.url))
 
                     # 开始请求...
                     try:
                         self.middleware(req)
-                        await asyncio.sleep(self.delay)
+                        delay = self._get_delay()
+                        if delay > 0:
+                            await asyncio.sleep(delay)
                         resp = await req.send()
 
                     # 请求失败
@@ -93,8 +177,14 @@ class MiniSpider:
                         except Exception as e:
                             logger.error("`处理异常函数`异常了 | {} | {}".format(e, req.url))
 
+                        # 最后一次重试也失败了
+                        if i == self.max_retry_times:
+                            self.stats.failed_count += 1
+
                     # 请求成功
                     else:
+                        self.stats.success_count += 1
+
                         # 校验响应
                         try:
                             self.validator(resp)
@@ -124,9 +214,16 @@ class MiniSpider:
 
     async def item_task(self, q2: asyncio.Queue):
         while True:
-            item = await q2.get()
+            try:
+                item = await asyncio.wait_for(q2.get(), timeout=0.5)
+            except asyncio.TimeoutError:
+                if self._stop_event.is_set():
+                    break
+                continue
+
             if item is None:
                 break
+            self.stats.item_count += 1
             self.process_item(item)
             q2.task_done()
 
@@ -135,6 +232,9 @@ class MiniSpider:
 
     async def run(self):
         """爬取入口"""
+        self.spider_opened()
+        logger.info(f"爬虫 {self.__class__.__name__} 启动")
+
         request_queue = asyncio.PriorityQueue()
         item_queue = asyncio.Queue()
         semaphore = asyncio.Semaphore(self.max_requests)
@@ -149,13 +249,16 @@ class MiniSpider:
         for req in self.start_requests():
             await request_queue.put(req)
 
-        # 等待所有请求处理完成
-        await request_queue.join()
-        logger.debug("处理请求已结束")
+        try:
+            # 等待所有请求处理完成
+            await request_queue.join()
+            logger.debug("处理请求已结束")
 
-        # 等待所有数据处理完成
-        await item_queue.join()
-        logger.debug("处理数据已结束")
+            # 等待所有数据处理完成
+            await item_queue.join()
+            logger.debug("处理数据已结束")
+        except asyncio.CancelledError:
+            logger.warning("爬虫被取消")
 
         # 退出请求任务
         for _ in range(self.max_requests):
@@ -169,5 +272,24 @@ class MiniSpider:
         await asyncio.gather(*request_tasks)
         await asyncio.gather(*item_tasks)
 
+        # 关闭 HTTP 客户端
+        await close_client()
+
+        self.spider_closed()
+        logger.info(f"爬虫 {self.__class__.__name__} 结束 | {self.stats}")
+
+    def _handle_sigint(self, signum, frame):
+        """处理 Ctrl+C 信号"""
+        logger.warning("收到中断信号，正在优雅退出...")
+        self._stop_event.set()
+
     def go(self):
-        asyncio.run(self.run())
+        # 注册信号处理器
+        original_handler = signal.signal(signal.SIGINT, self._handle_sigint)
+        try:
+            asyncio.run(self.run())
+        except KeyboardInterrupt:
+            logger.warning("爬虫被强制中断")
+        finally:
+            # 恢复原始信号处理器
+            signal.signal(signal.SIGINT, original_handler)

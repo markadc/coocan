@@ -7,23 +7,28 @@ from coocan.url.errs import ResponseCodeError, ResponseTextError
 
 
 class SelectorResponse(Response):
-    """可以使用Xpath、CSS"""
+    """可以使用 Xpath、CSS"""
 
     def __init__(self, response: Response):
         super().__init__(response.status_code)
         self.__dict__.update(response.__dict__)
-        self.selector = Selector(text=response.text)
+        self._selector: Selector | None = None
+
+    @property
+    def selector(self) -> Selector:
+        """延迟初始化 Selector，只有需要时才解析 HTML"""
+        if self._selector is None:
+            self._selector = Selector(text=self.text)
+        return self._selector
 
     def __str__(self):
         return "<Response {}>".format(self.status_code)
 
     def xpath(self, query: str):
-        sel = self.selector.xpath(query)
-        return sel
+        return self.selector.xpath(query)
 
     def css(self, query: str):
-        sel = self.selector.css(query)
-        return sel
+        return self.selector.css(query)
 
     def get_one(self, query: str, default=None, strip=True):
         v = self.selector.xpath(query).get(default=default)
@@ -44,8 +49,10 @@ class SelectorResponse(Response):
 
     def raise_has_text(self, text: str):
         """有此文本则抛出异常"""
-        assert self.text.find(text) == -1, ResponseTextError(f"has text: {text}")
+        if self.text.find(text) != -1:
+            raise ResponseTextError(f"has text: {text}")
 
     def raise_no_text(self, text: str):
         """无此文本则抛出异常"""
-        assert self.text.find(text) != -1, ResponseTextError(f"no text: {text}")
+        if self.text.find(text) == -1:
+            raise ResponseTextError(f"no text: {text}")
