@@ -63,7 +63,7 @@ class MiniSpider:
     def __init__(self):
         self.stats = Stats()
         self._seen_urls: set[str] = set()
-        self._stop_event = asyncio.Event()
+        self._stop_event: asyncio.Event | None = None
 
     def _get_url_fingerprint(self, request: Request) -> str:
         """生成 URL 指纹用于去重"""
@@ -232,6 +232,7 @@ class MiniSpider:
 
     async def run(self):
         """爬取入口"""
+        self._stop_event = asyncio.Event()
         self.spider_opened()
         logger.info(f"爬虫 {self.__class__.__name__} 启动")
 

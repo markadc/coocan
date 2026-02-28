@@ -17,12 +17,13 @@ def gen_random_os() -> str:
 def gen_random_browser() -> str:
     """生成一个随机的浏览器类型和版本"""
     browser_choices = [
-        ("Chrome", random.randint(110, 130)),
-        ("Firefox", random.randint(110, 125)),
-        ("Edge", random.randint(110, 130)),
-        ("Safari", random.randint(15, 17)),
+        ("Chrome", (110, 130)),
+        ("Firefox", (110, 125)),
+        ("Edge", (110, 130)),
+        ("Safari", (15, 17)),
     ]
-    browser, version = random.choice(browser_choices)
+    browser, (lo, hi) = random.choice(browser_choices)
+    version = random.randint(lo, hi)
     return f"{browser}/{version}.0"
 
 

@@ -11,7 +11,7 @@ def get_client() -> httpx.AsyncClient:
     """获取全局共享的 HTTP 客户端"""
     global _client
     if _client is None:
-        _client = httpx.AsyncClient()
+        _client = httpx.AsyncClient(timeout=10.0)
     return _client
 
 
@@ -49,7 +49,7 @@ class Request:
         self.json = json
         self.proxy = proxy
         self.timeout = timeout
-        self.priority = priority or time.time()
+        self.priority = time.time() if priority is None else priority
         self.method = method
 
     def _get_method(self) -> str:

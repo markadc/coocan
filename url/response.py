@@ -49,10 +49,10 @@ class SelectorResponse(Response):
 
     def raise_has_text(self, text: str):
         """有此文本则抛出异常"""
-        if self.text.find(text) != -1:
+        if text in self.text:
             raise ResponseTextError(f"has text: {text}")
 
     def raise_no_text(self, text: str):
         """无此文本则抛出异常"""
-        if self.text.find(text) == -1:
+        if text not in self.text:
             raise ResponseTextError(f"no text: {text}")
