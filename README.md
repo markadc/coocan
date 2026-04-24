@@ -134,12 +134,14 @@ python my_spider.py
 ```python
 class MySpider(MiniSpider):
     start_urls = ["https://example.com"]  # 起始 URL
-    max_requests = 20                      # 最大并发数
+    max_requests = 20                      # 最大并发请求数（信号量限制）
+    worker_count = None                    # 请求处理协程数，None 则自动为 max_requests * 2
     max_retry_times = 3                    # 最大重试次数
     delay = 0                              # 请求延迟（秒），支持元组如 (1, 3) 表示 1-3 秒随机延迟
     enable_random_ua = True                # 启用随机 User-Agent
     enable_duplicate_filter = False        # 启用 URL 去重
     item_speed = 100                       # 数据处理协程数
+    client_limits = None                   # httpx.Limits，控制连接池（如最大连接数、keepalive）
 ```
 
 ---
@@ -414,6 +416,12 @@ Coocan 提供了便捷的命令行工具：
 # 创建新爬虫
 coocan new -s spider_name
 
+# 查看版本
+coocan --version
+
+# 直接输入 coocan 也显示版本
+coocan
+
 # 查看帮助
 coocan --help
 ```
@@ -421,6 +429,18 @@ coocan --help
 ---
 
 ## 📝 更新日志
+
+### v0.8.1 (2025-4-24)
+
+- ✨ **CLI 版本展示** - `coocan` 命令直接展示版本号「coocan version x.x.x」
+- ✨ **`coocan --version`** - 支持 `--version` 参数查看版本
+
+### v0.8.0 (2025-4-24)
+
+- ⚡ **代理请求复用客户端** - 按 proxy 维度缓存 `httpx.AsyncClient`，爬虫结束时统一关闭，避免频繁创建/销毁连接
+- ⚡ **并发控制修复** - 新增 `worker_count` 参数（默认 `max_requests * 2`），与信号量并发限制解耦
+- ⚡ **`process_item` 支持异步** - 自动检测协程函数，同步/异步兼容，数据处理不再阻塞事件循环
+- ⚡ **暴露连接池配置** - 新增 `client_limits` 参数，支持 `httpx.Limits` 调优
 
 ### v0.7.0 (2025-2-9)
 

@@ -6,10 +6,11 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
+import httpx
 from loguru import logger
 
 from coocan.gen import gen_random_ua
-from coocan.url import Request, Response, close_client
+from coocan.url import Request, Response, close_client, get_client
 
 
 class IgnoreRequest(Exception):
@@ -55,15 +56,18 @@ class MiniSpider:
     max_requests = 5
     max_retry_times = 3
     enable_random_ua = True
-    headers_extra_field = {}
+    headers_extra_field = None
     delay: int | tuple[float, float] = 0  # 支持固定延迟或随机延迟范围
     item_speed = 100
     enable_duplicate_filter = False  # 是否启用 URL 去重
+    worker_count = None  # 请求处理协程数，None 则自动计算为 max_requests * 2
+    client_limits = None  # httpx.Limits，控制连接池
 
     def __init__(self):
         self.stats = Stats()
         self._seen_urls: set[str] = set()
         self._stop_event: asyncio.Event | None = None
+        self._clients: dict[str | None, httpx.AsyncClient] = {}
 
     def _get_url_fingerprint(self, request: Request) -> str:
         """生成 URL 指纹用于去重"""
@@ -99,6 +103,20 @@ class MiniSpider:
         # 为 headers 补充额外字段
         if self.headers_extra_field:
             request.headers.update(self.headers_extra_field)
+
+    def _get_client_for_request(self, request: Request) -> httpx.AsyncClient:
+        """根据请求的 proxy 获取或创建对应的 httpx 客户端"""
+        proxy = request.proxy
+        if proxy not in self._clients:
+            client_kwargs = {"timeout": 10.0}
+            if self.client_limits is not None:
+                client_kwargs["limits"] = self.client_limits
+            if proxy is None:
+                self._clients[proxy] = get_client(limits=self.client_limits)
+            else:
+                client_kwargs["proxy"] = proxy
+                self._clients[proxy] = httpx.AsyncClient(**client_kwargs)
+        return self._clients[proxy]
 
     def validator(self, response: Response):
         """校验响应"""
@@ -162,7 +180,8 @@ class MiniSpider:
                         delay = self._get_delay()
                         if delay > 0:
                             await asyncio.sleep(delay)
-                        resp = await req.send()
+                        client = self._get_client_for_request(req)
+                        resp = await req.send(client)
 
                     # 请求失败
                     except Exception as e:
@@ -224,7 +243,10 @@ class MiniSpider:
             if item is None:
                 break
             self.stats.item_count += 1
-            self.process_item(item)
+            if asyncio.iscoroutinefunction(self.process_item):
+                await self.process_item(item)
+            else:
+                self.process_item(item)
             q2.task_done()
 
     def process_item(self, item: dict):
@@ -240,8 +262,11 @@ class MiniSpider:
         item_queue = asyncio.Queue()
         semaphore = asyncio.Semaphore(self.max_requests)
 
+        # 请求处理协程数与并发数解耦
+        worker_count = self.worker_count or self.max_requests * 2
+
         # 处理请求...
-        request_tasks = [asyncio.create_task(self.request_task(request_queue, item_queue, semaphore)) for _ in range(self.max_requests)]
+        request_tasks = [asyncio.create_task(self.request_task(request_queue, item_queue, semaphore)) for _ in range(worker_count)]
 
         # 处理数据...
         item_tasks = [asyncio.create_task(self.item_task(item_queue)) for _ in range(self.item_speed)]
@@ -262,7 +287,7 @@ class MiniSpider:
             logger.warning("爬虫被取消")
 
         # 退出请求任务
-        for _ in range(self.max_requests):
+        for _ in range(worker_count):
             await request_queue.put(Request(url=""))
 
         # 退出数据任务
@@ -273,11 +298,18 @@ class MiniSpider:
         await asyncio.gather(*request_tasks)
         await asyncio.gather(*item_tasks)
 
-        # 关闭 HTTP 客户端
-        await close_client()
+        # 关闭所有 HTTP 客户端
+        await self._close_all_clients()
 
         self.spider_closed()
         logger.info(f"爬虫 {self.__class__.__name__} 结束 | {self.stats}")
+
+    async def _close_all_clients(self):
+        """关闭所有缓存的 HTTP 客户端"""
+        for client in self._clients.values():
+            await client.aclose()
+        self._clients.clear()
+        await close_client()
 
     def _handle_sigint(self, signum, frame):
         """处理 Ctrl+C 信号"""

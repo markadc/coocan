@@ -7,11 +7,14 @@ import httpx
 _client: httpx.AsyncClient | None = None
 
 
-def get_client() -> httpx.AsyncClient:
+def get_client(limits=None) -> httpx.AsyncClient:
     """获取全局共享的 HTTP 客户端"""
     global _client
     if _client is None:
-        _client = httpx.AsyncClient(timeout=10.0)
+        if limits is not None:
+            _client = httpx.AsyncClient(timeout=10.0, limits=limits)
+        else:
+            _client = httpx.AsyncClient(timeout=10.0)
     return _client
 
 
@@ -60,7 +63,7 @@ class Request:
             return "POST"
         return "GET"
 
-    async def send(self) -> httpx.Response:
+    async def send(self, client: httpx.AsyncClient = None) -> httpx.Response:
         method = self._get_method()
         kwargs = {
             "url": self.url,
@@ -75,14 +78,9 @@ class Request:
             kwargs["data"] = self.data
             kwargs["json"] = self.json
 
-        # 使用代理时创建临时客户端，用完即关闭
-        if self.proxy:
-            async with httpx.AsyncClient(proxy=self.proxy) as client:
-                response = await client.request(method, **kwargs)
-        else:
+        if client is None:
             client = get_client()
-            response = await client.request(method, **kwargs)
-
+        response = await client.request(method, **kwargs)
         return response
 
     def __lt__(self, other):

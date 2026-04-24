@@ -4,6 +4,24 @@ from pathlib import Path
 
 import click
 
+try:
+    from importlib.metadata import version as get_version
+except ImportError:
+    from importlib_metadata import version as get_version
+
+try:
+    __version__ = get_version("coocan")
+except Exception:
+    # 开发环境未安装时，从 pyproject.toml 读取
+    _pyproject = Path(__file__).parent.parent.parent / "pyproject.toml"
+    if _pyproject.exists():
+        with open(_pyproject, "r") as f:
+            _text = f.read()
+        _m = re.search(r'^version = "([^"]+)"', _text, re.M)
+        __version__ = _m.group(1) if _m else "unknown"
+    else:
+        __version__ = "unknown"
+
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
 help_info = """
@@ -23,12 +41,14 @@ def snake_to_pascal(snake_str: str):
     return pascal_str
 
 
+@click.version_option(version=__version__, prog_name="coocan")
 @click.group(invoke_without_command=True)
 @click.pass_context
 def main(ctx):
     if ctx.invoked_subcommand is None:
         print(help_info)
         click.echo("coocan new -s <spider_file_name>")
+        click.echo(f"coocan version {__version__}")
 
 
 @main.command()
