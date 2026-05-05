@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 import random
 import time
 
@@ -8,7 +13,7 @@ from coocan import MiniSpider, Request, Response
 
 class RecvItemSpider(MiniSpider):
     start_urls = ["https://cn.bing.com/search?q=1"]
-    max_requests = 10
+    max_concurrency = 10
 
     def parse(self, response: Response):
         logger.warning(

@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 
 def run_test(test_file: str):
     """运行单个测试文件"""

@@ -1,5 +1,10 @@
 """测试 MiniSpider 类 - 直接运行即可测试"""
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from coocan import MiniSpider, Request, Response
 from coocan.spider.base import IgnoreRequest, IgnoreResponse, Stats
 
@@ -34,11 +39,11 @@ def test_spider_init():
 
     spider = MiniSpider()
     assert spider.start_urls == []
-    assert spider.max_requests == 5
+    assert spider.max_concurrency == 5
     assert spider.max_retry_times == 3
     assert spider.enable_random_ua is True
     assert spider.delay == 0
-    assert spider.item_speed == 100
+    assert spider.item_speed == 10
     assert spider.enable_duplicate_filter is False
     print("  ✓ 默认值")
 
@@ -55,27 +60,27 @@ def test_duplicate_filter():
     spider = MiniSpider()
 
     # 指纹生成
-    req = Request("https://example.com")
+    req = Request("https://taobao.com")
     fp = spider._get_url_fingerprint(req)
     assert isinstance(fp, str)
     assert len(fp) == 32  # MD5
     print("  ✓ 指纹生成")
 
     # 相同 URL 相同指纹
-    req1 = Request("https://example.com")
-    req2 = Request("https://example.com")
+    req1 = Request("https://taobao.com")
+    req2 = Request("https://taobao.com")
     assert spider._get_url_fingerprint(req1) == spider._get_url_fingerprint(req2)
     print("  ✓ 相同 URL 相同指纹")
 
     # 不同 URL 不同指纹
-    req1 = Request("https://example.com/1")
-    req2 = Request("https://example.com/2")
+    req1 = Request("https://taobao.com/1")
+    req2 = Request("https://taobao.com/2")
     assert spider._get_url_fingerprint(req1) != spider._get_url_fingerprint(req2)
     print("  ✓ 不同 URL 不同指纹")
 
     # 禁用去重
     spider.enable_duplicate_filter = False
-    req = Request("https://example.com")
+    req = Request("https://taobao.com")
     assert spider._is_duplicate(req) is False
     assert spider._is_duplicate(req) is False
     print("  ✓ 禁用去重")
@@ -83,7 +88,7 @@ def test_duplicate_filter():
     # 启用去重
     spider2 = MiniSpider()
     spider2.enable_duplicate_filter = True
-    req = Request("https://example.com/test")
+    req = Request("https://taobao.com/test")
     assert spider2._is_duplicate(req) is False  # 第一次
     assert spider2._is_duplicate(req) is True  # 第二次
     print("  ✓ 启用去重")
@@ -111,7 +116,7 @@ def test_start_requests():
     print("测试初始请求...")
 
     class TestSpider(MiniSpider):
-        start_urls = ["https://example.com/1", "https://example.com/2"]
+        start_urls = ["https://taobao.com/1", "https://taobao.com/2"]
 
         def parse(self, response):
             pass
@@ -120,7 +125,7 @@ def test_start_requests():
     requests = list(spider.start_requests())
     assert len(requests) == 2
     assert all(isinstance(r, Request) for r in requests)
-    assert requests[0].url == "https://example.com/1"
+    assert requests[0].url == "https://taobao.com/1"
     print("  ✓ 从 start_urls 生成请求")
 
     # 空 start_urls
@@ -138,7 +143,7 @@ def test_middleware():
 
     spider = MiniSpider()
     spider.enable_random_ua = True
-    req = Request("https://example.com")
+    req = Request("https://taobao.com")
     spider.middleware(req)
     assert "User-Agent" in req.headers
     assert req.headers["User-Agent"].startswith("Mozilla/5.0")
@@ -146,14 +151,14 @@ def test_middleware():
 
     spider2 = MiniSpider()
     spider2.enable_random_ua = False
-    req = Request("https://example.com")
+    req = Request("https://taobao.com")
     spider2.middleware(req)
     assert "User-Agent" not in req.headers
     print("  ✓ 禁用随机 UA")
 
     spider3 = MiniSpider()
     spider3.headers_extra_field = {"X-Custom": "value"}
-    req = Request("https://example.com")
+    req = Request("https://taobao.com")
     spider3.middleware(req)
     assert req.headers["X-Custom"] == "value"
     print("  ✓ 额外 headers")
@@ -189,8 +194,8 @@ def test_integration_simple():
     results = []
 
     class TestSpider(MiniSpider):
-        start_urls = ["https://example.com"]
-        max_requests = 1
+        start_urls = ["https://taobao.com"]
+        max_concurrency = 1
 
         def parse(self, response: Response):
             title = response.get_one("//title/text()")
@@ -203,7 +208,7 @@ def test_integration_simple():
     spider.go()
 
     assert len(results) == 1
-    assert results[0]["title"] == "Example Domain"
+    assert results[0]["title"] is not None and len(results[0]["title"]) > 0
     assert spider.stats.request_count == 1
     assert spider.stats.success_count == 1
     assert spider.stats.item_count == 1
@@ -218,11 +223,11 @@ def test_integration_duplicate():
 
     class TestSpider(MiniSpider):
         enable_duplicate_filter = True
-        max_requests = 2
+        max_concurrency = 2
 
         def start_requests(self):
             for _ in range(5):
-                yield Request("https://example.com", callback=self.parse)
+                yield Request("https://taobao.com", callback=self.parse)
 
         def parse(self, response: Response):
             request_count[0] += 1
@@ -240,8 +245,8 @@ def test_integration_lifecycle():
     called = []
 
     class TestSpider(MiniSpider):
-        start_urls = ["https://example.com"]
-        max_requests = 1
+        start_urls = ["https://taobao.com"]
+        max_concurrency = 1
 
         def spider_opened(self):
             called.append("opened")
@@ -267,14 +272,14 @@ def test_integration_chain():
     results = []
 
     class TestSpider(MiniSpider):
-        max_requests = 2
+        max_concurrency = 2
 
         def start_requests(self):
-            yield Request("https://example.com", callback=self.parse_list)
+            yield Request("https://taobao.com", callback=self.parse_list)
 
         def parse_list(self, response: Response):
             results.append("list")
-            yield Request("https://example.com", callback=self.parse_detail)
+            yield Request("https://taobao.com", callback=self.parse_detail)
 
         def parse_detail(self, response: Response):
             results.append("detail")

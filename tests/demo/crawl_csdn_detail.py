@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 import json
 
 from loguru import logger
@@ -8,7 +13,7 @@ from coocan import Request, MiniSpider
 
 class CSDNDetailSpider(MiniSpider):
     start_urls = ["http://www.csdn.net"]
-    max_requests = 10
+    max_concurrency = 10
 
     def middleware(self, request: Request):
         request.headers["Referer"] = "http://www.csdn.net/"

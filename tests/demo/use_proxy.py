@@ -1,9 +1,14 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from coocan import Request, Response, MiniSpider
 
 
 class UseProxySpider(MiniSpider):
     start_urls = ["https://httpbin.org/ip"]
-    max_requests = 5
+    max_concurrency = 5
     delay = 5
 
     def start_requests(self):

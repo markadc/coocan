@@ -1,5 +1,10 @@
 """测试 Request 类 - 直接运行即可测试"""
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 import asyncio
 import time
 
@@ -10,8 +15,8 @@ def test_request_init():
     print("测试 Request 初始化...")
 
     # 基本初始化
-    req = Request("https://example.com")
-    assert req.url == "https://example.com"
+    req = Request("https://taobao.com")
+    assert req.url == "https://taobao.com"
     assert req.callback is None
     assert req.cb_kwargs == {}
     assert req.headers == {}
@@ -21,43 +26,43 @@ def test_request_init():
     def my_callback(response):
         pass
 
-    req = Request("https://example.com", callback=my_callback)
+    req = Request("https://taobao.com", callback=my_callback)
     assert req.callback == my_callback
     print("  ✓ 带回调")
 
     # 带 headers
-    req = Request("https://example.com", headers={"User-Agent": "test"})
+    req = Request("https://taobao.com", headers={"User-Agent": "test"})
     assert req.headers == {"User-Agent": "test"}
     print("  ✓ 带 headers")
 
     # 带 cookies
-    req = Request("https://example.com", cookies={"session": "abc"})
+    req = Request("https://taobao.com", cookies={"session": "abc"})
     assert req.cookies == {"session": "abc"}
     print("  ✓ 带 cookies")
 
     # 带 params
-    req = Request("https://example.com", params={"page": 1})
+    req = Request("https://taobao.com", params={"page": 1})
     assert req.params == {"page": 1}
     print("  ✓ 带 params")
 
     # 带 proxy
-    req = Request("https://example.com", proxy="http://127.0.0.1:8080")
+    req = Request("https://taobao.com", proxy="http://127.0.0.1:8080")
     assert req.proxy == "http://127.0.0.1:8080"
     print("  ✓ 带 proxy")
 
     # 超时
-    req = Request("https://example.com")
+    req = Request("https://taobao.com")
     assert req.timeout == 6
-    req = Request("https://example.com", timeout=30)
+    req = Request("https://taobao.com", timeout=30)
     assert req.timeout == 30
     print("  ✓ 超时设置")
 
     # 优先级
     before = time.time()
-    req = Request("https://example.com")
+    req = Request("https://taobao.com")
     after = time.time()
     assert before <= req.priority <= after
-    req = Request("https://example.com", priority=100.0)
+    req = Request("https://taobao.com", priority=100.0)
     assert req.priority == 100.0
     print("  ✓ 优先级")
 
@@ -66,27 +71,27 @@ def test_request_method():
     print("测试 HTTP 方法推断...")
 
     # 默认 GET
-    req = Request("https://example.com")
+    req = Request("https://taobao.com")
     assert req._get_method() == "GET"
     print("  ✓ 默认 GET")
 
     # 带 data 是 POST
-    req = Request("https://example.com", data={"key": "value"})
+    req = Request("https://taobao.com", data={"key": "value"})
     assert req._get_method() == "POST"
     print("  ✓ 带 data 是 POST")
 
     # 带 json 是 POST
-    req = Request("https://example.com", json={"key": "value"})
+    req = Request("https://taobao.com", json={"key": "value"})
     assert req._get_method() == "POST"
     print("  ✓ 带 json 是 POST")
 
     # 显式指定 method
-    req = Request("https://example.com", data={"key": "value"}, method="PUT")
+    req = Request("https://taobao.com", data={"key": "value"}, method="PUT")
     assert req._get_method() == "PUT"
     print("  ✓ 显式指定覆盖")
 
     # 大小写不敏感
-    req = Request("https://example.com", method="delete")
+    req = Request("https://taobao.com", method="delete")
     assert req._get_method() == "DELETE"
     print("  ✓ 大小写不敏感")
 

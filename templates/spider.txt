@@ -3,7 +3,7 @@ from coocan import Request, Response, MiniSpider
 
 class {SpiderClassName}(MiniSpider):
     start_urls = ["https://github.com/markadc/coocan"]
-    max_requests = 10
+    max_concurrency = 10
 
     def middleware(self, request: Request):
         request.headers["Referer"] = "https://github.com"

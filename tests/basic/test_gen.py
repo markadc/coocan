@@ -1,5 +1,10 @@
 """测试 UA 生成器 - 直接运行即可测试"""
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 import re
 
 from coocan.gen import gen_random_browser, gen_random_os, gen_random_ua

@@ -1,4 +1,3 @@
-import os
 import re
 from pathlib import Path
 
@@ -36,9 +35,8 @@ help_info = """
 
 def snake_to_pascal(snake_str: str):
     """小蛇变成大驼峰"""
-    words = snake_str.split("_")
-    pascal_str = "".join(word.capitalize() for word in words)
-    return pascal_str
+    words = [w for w in snake_str.split("_") if w]
+    return "".join(word.capitalize() for word in words)
 
 
 @click.version_option(version=__version__, prog_name="coocan")
@@ -55,8 +53,8 @@ def main(ctx):
 @click.option("-s", "--spider", required=True, help="爬虫文件名字")
 def new(spider: str):
     """新建"""
-    if not re.search("^[a-zA-Z0-9_]*$", spider):
-        click.echo("只支持字母、数字、下划线")
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", spider):
+        click.echo("只支持字母、数字、下划线，且不能以数字开头")
         return
 
     spider_class_name = snake_to_pascal(spider)
@@ -65,16 +63,16 @@ def new(spider: str):
 
     try:
         template_path = TEMPLATE_DIR / "spider.txt"
-        with open(template_path, "r") as f:
+        with open(template_path, "r", encoding="utf-8") as f:
             text = f.read()
             spider_py_text = text.replace("{SpiderClassName}", spider_class_name)
 
-        py_file = "{}.py".format(spider)
-        if os.path.exists(py_file):
+        py_file = Path("{}.py".format(spider))
+        if py_file.exists():
             click.echo("❌ Failed because file {} already exists".format(py_file))
             return
 
-        with open(py_file, "w") as f:
+        with open(py_file, "w", encoding="utf-8") as f:
             f.write(spider_py_text)
 
         click.echo("✅ Success create {}".format(py_file))
