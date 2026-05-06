@@ -4,9 +4,8 @@ import json
 import random
 import signal
 import time
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Any
 
 import httpx
 from loguru import logger
@@ -468,8 +467,8 @@ class MiniSpider:
         logger.debug("🎉 All HTTP clients closed")
 
         self.spider_closed()
-        logger.info(f"✅ {self.__class__.__name__} Finished")
         logger.info(self.stats)
+        logger.info(f"✅ {self.__class__.__name__} Finished")
 
     async def _close_all_clients(self):
         """关闭所有代理专属 HTTP 客户端和全局客户端。"""

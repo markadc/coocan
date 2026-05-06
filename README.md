@@ -102,7 +102,11 @@ if __name__ == '__main__':
 ### 3. 运行爬虫
 
 ```bash
+# 直接运行
 python my_spider.py
+
+# 或使用 CLI 工具
+coocan run my_spider.py
 ```
 
 ---
@@ -140,7 +144,7 @@ class MySpider(MiniSpider):
     delay = 0                              # 请求延迟（秒），支持元组如 (1, 3) 表示 1-3 秒随机延迟
     enable_random_ua = True                # 启用随机 User-Agent
     enable_duplicate_filter = False        # 启用 URL 去重
-    item_speed = 100                       # 数据处理协程数
+    item_speed = 10                        # 数据处理协程数
     client_limits = None                   # httpx.Limits，控制连接池（如最大连接数、keepalive）
 ```
 
@@ -415,6 +419,15 @@ Coocan 提供了便捷的命令行工具：
 ```bash
 # 创建新爬虫
 coocan new -s spider_name
+
+# 运行爬虫文件（自动发现 MiniSpider 子类）
+coocan run my_spider.py
+
+# 检查爬虫配置
+coocan check my_spider.py
+
+# 生成随机 User-Agent
+coocan ua -n 5
 
 # 查看版本
 coocan --version
