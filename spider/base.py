@@ -433,13 +433,12 @@ class MiniSpider:
         try:
             # 等待所有请求处理完成
             await request_queue.join()
-            logger.debug("处理请求已结束")
-
+            logger.debug("🎉 All requests processed")
             # 等待所有数据处理完成
             await item_queue.join()
-            logger.debug("处理数据已结束")
+            logger.debug("🎉 All items processed")
         except asyncio.CancelledError:
-            logger.warning("爬虫被取消")
+            logger.warning("⚠️ Spider cancelled")
             # 取消所有 worker 唤醒阻塞在 get() 上的协程
             for t in request_tasks + item_tasks:
                 t.cancel()
@@ -448,24 +447,29 @@ class MiniSpider:
             raise
 
         # 发送退出信号
-        logger.debug("发送退出信号...")
+        logger.debug("Send exit signals")
         for _ in range(worker_count):
             await request_queue.put(_REQUEST_SENTINEL)
         for _ in range(self.item_speed):
             await item_queue.put(_ITEM_SENTINEL)
 
         # 等待所有工作协程完成
-        logger.debug("等待请求协程退出...")
+        logger.debug("⌛️ Wait req coro quit...")
         await asyncio.gather(*request_tasks)
-        logger.debug("等待数据协程退出...")
+        logger.debug("🎉 Req coro quited")
+
+        logger.debug("⌛️ Wait item coro quit...")
         await asyncio.gather(*item_tasks)
+        logger.debug("🎉 Item coro quited")
 
         # 关闭所有 HTTP 客户端
-        logger.debug("关闭 HTTP 客户端...")
+        logger.debug("⌛️ Close HTTP clients...")
         await self._close_all_clients()
+        logger.debug("🎉 All HTTP clients closed")
 
         self.spider_closed()
-        logger.info(f"爬虫 {self.__class__.__name__} 结束 | {self.stats}")
+        logger.info(f"✅ {self.__class__.__name__} Finished")
+        logger.info(self.stats)
 
     async def _close_all_clients(self):
         """关闭所有代理专属 HTTP 客户端和全局客户端。"""
