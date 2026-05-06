@@ -72,7 +72,7 @@ class MySpider(MiniSpider):
     start_urls = ["https://example.com"]
 
     # 最大并发请求数
-    max_requests = 10
+    max_concurrency = 10
 
     def parse(self, response):
         """解析响应"""
@@ -133,9 +133,9 @@ python my_spider.py
 
 ```python
 class MySpider(MiniSpider):
-    start_urls = ["https://example.com"]  # 起始 URL
-    max_requests = 20                      # 最大并发请求数（信号量限制）
-    worker_count = None                    # 请求处理协程数，None 则自动为 max_requests * 2
+    start_urls = ["https://example.com"]   # 起始 URL
+    max_concurrency = 10                   # 最大并发请求数（信号量限制）
+    worker_count = None                    # 请求处理协程数，None 则自动为 max_concurrency * 2
     max_retry_times = 3                    # 最大重试次数
     delay = 0                              # 请求延迟（秒），支持元组如 (1, 3) 表示 1-3 秒随机延迟
     enable_random_ua = True                # 启用随机 User-Agent
@@ -203,7 +203,7 @@ from coocan import Request, MiniSpider
 
 class CSDNSpider(MiniSpider):
     start_urls = ["http://www.csdn.net"]
-    max_requests = 10
+    max_concurrency = 10
 
     def middleware(self, request: Request):
         """请求中间件"""
@@ -438,7 +438,7 @@ coocan --help
 ### v0.8.0 (2025-4-24)
 
 - ⚡ **代理请求复用客户端** - 按 proxy 维度缓存 `httpx.AsyncClient`，爬虫结束时统一关闭，避免频繁创建/销毁连接
-- ⚡ **并发控制修复** - 新增 `worker_count` 参数（默认 `max_requests * 2`），与信号量并发限制解耦
+- ⚡ **并发控制修复** - 新增 `worker_count` 参数（默认 `max_concurrency * 2`），与信号量并发限制解耦
 - ⚡ **`process_item` 支持异步** - 自动检测协程函数，同步/异步兼容，数据处理不再阻塞事件循环
 - ⚡ **暴露连接池配置** - 新增 `client_limits` 参数，支持 `httpx.Limits` 调优
 
