@@ -443,6 +443,17 @@ coocan --help
 
 ## 📝 更新日志
 
+### v0.9.1 (2026-5-7)
+
+- ✨ **异步回调支持增强** - `parse` / 自定义 callback 支持 `async def`、异步生成器、直接返回 `dict` 或 `Request`
+- 🐛 **默认回调兜底** - `Request(callback=None)` 入队后默认使用 `parse`，避免空回调导致运行期异常
+- 🐛 **优雅退出修复** - Ctrl+C 会取消主任务并回收 worker，确保关闭 HTTP 客户端并执行 `spider_closed()`
+- ⚡ **连接池隔离优化** - 全局 `httpx.AsyncClient` 按 `httpx.Limits` 分池缓存，避免不同爬虫配置互相影响
+- ⚡ **URL 去重增强** - 请求指纹加入 `cookies` 和 `proxy`，并兼容不可 JSON 序列化的请求参数
+- ✨ **CLI 静态识别增强** - 支持 `import coocan as cc` 后继承 `cc.MiniSpider` 的写法
+- ✨ **异常导出完善** - `IgnoreResponse` 可直接从 `coocan` / `coocan.spider` 导入
+- 🧪 **测试稳定性优化** - 默认测试改为离线可运行，减少对外网和第三方页面内容的依赖
+
 ### v0.9.0 (2026-5-6)
 
 - 🐛 **CLI 安全加载** - `coocan run/check` 在导入执行前先静态检查 `MiniSpider` 子类，避免普通脚本被误执行

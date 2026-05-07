@@ -99,7 +99,8 @@ def _base_name(node: ast.expr) -> str | None:
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):
-        return node.attr
+        parent = _base_name(node.value)
+        return f"{parent}.{node.attr}" if parent else node.attr
     if isinstance(node, ast.Subscript):
         return _base_name(node.value)
     return None
@@ -117,11 +118,17 @@ def find_static_spider_class_names(file: Path):
         raise CoocanClickException(f"读取文件失败: {e}")
 
     minispider_names = {"MiniSpider"}
+    coocan_module_names = {"coocan"}
     for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "coocan":
+                    coocan_module_names.add(alias.asname or alias.name)
         if isinstance(node, ast.ImportFrom) and node.module in {"coocan", "coocan.spider.base"}:
             for alias in node.names:
                 if alias.name == "MiniSpider":
                     minispider_names.add(alias.asname or alias.name)
+    minispider_names.update(f"{name}.MiniSpider" for name in coocan_module_names)
 
     classes = [node for node in tree.body if isinstance(node, ast.ClassDef)]
     spider_names = set(minispider_names)

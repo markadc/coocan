@@ -1,2 +1,2 @@
-__all__ = ["MiniSpider", "IgnoreRequest"]
-from coocan.spider.base import MiniSpider, IgnoreRequest
+__all__ = ["MiniSpider", "IgnoreRequest", "IgnoreResponse"]
+from coocan.spider.base import MiniSpider, IgnoreRequest, IgnoreResponse

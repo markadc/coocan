@@ -1,6 +1,6 @@
 import itertools
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 _counter = itertools.count()
@@ -8,30 +8,36 @@ _counter = itertools.count()
 import httpx
 from loguru import logger
 
-# 全局共享的 HTTP 客户端（无代理时使用）
-_client: httpx.AsyncClient | None = None
-_client_limits: httpx.Limits | None = None
+# 全局共享的 HTTP 客户端（无代理时使用），按 limits 隔离连接池配置。
+_clients: dict[tuple[Any, ...], httpx.AsyncClient] = {}
 
 
 def get_client(limits: httpx.Limits | None = None) -> httpx.AsyncClient:
     """获取全局共享的 HTTP 客户端。
 
     Args:
-        limits: httpx.Limits 连接池限制，仅首次调用时生效。
+        limits: httpx.Limits 连接池限制。
 
     Returns:
-        全局单例 httpx.AsyncClient。
+        与 limits 匹配的全局 httpx.AsyncClient。
     """
-    global _client, _client_limits
-    if _client is None:
+    key = _limits_key(limits)
+    if key not in _clients:
         if limits is not None:
-            _client = httpx.AsyncClient(timeout=10.0, limits=limits)
+            _clients[key] = httpx.AsyncClient(timeout=10.0, limits=limits)
         else:
-            _client = httpx.AsyncClient(timeout=10.0)
-        _client_limits = limits
-    elif limits is not None and limits != _client_limits:
-        logger.warning("get_client() 传入的 limits 与已有客户端不同，将继续使用现有客户端")
-    return _client
+            _clients[key] = httpx.AsyncClient(timeout=10.0)
+    return _clients[key]
+
+
+def _limits_key(limits: httpx.Limits | None) -> tuple[Any, ...]:
+    if limits is None:
+        return (None,)
+    return (
+        getattr(limits, "max_connections", None),
+        getattr(limits, "max_keepalive_connections", None),
+        getattr(limits, "keepalive_expiry", None),
+    )
 
 
 def create_client(
@@ -56,11 +62,10 @@ def create_client(
 
 
 async def close_client():
-    """关闭全局 HTTP 客户端。"""
-    global _client
-    if _client is not None:
-        await _client.aclose()
-        _client = None
+    """关闭所有全局 HTTP 客户端。"""
+    for client in list(_clients.values()):
+        await client.aclose()
+    _clients.clear()
 
 
 class Request:
@@ -105,11 +110,11 @@ class Request:
         url: str,
         callback: Callable[..., Any] | None = None,
         cb_kwargs: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
+        params: Mapping[str, Any] | None = None,
         headers: dict[str, str] | None = None,
         cookies: dict[str, str] | None = None,
-        data: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
+        data: Any = None,
+        json: Any = None,
         proxy: str | None = None,
         timeout: int = 6,
         priority: float | None = None,

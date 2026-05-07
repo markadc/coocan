@@ -2,10 +2,16 @@
 
 import time
 
+import httpx
 import pytest
 
 from coocan import MiniSpider, Request, Response
 from coocan.spider.base import IgnoreRequest, IgnoreResponse, Stats
+
+
+async def fake_send(self, client=None):
+    request = httpx.Request(self._get_method(), self.url)
+    return httpx.Response(200, text="<html><title>本地测试页</title></html>", request=request)
 
 
 class TestStats:
@@ -168,13 +174,13 @@ class TestExceptions:
         assert str(exc) == "测试忽略响应"
 
 
-@pytest.mark.online
 class TestIntegrationSimple:
-    def test_crawl(self):
+    def test_crawl(self, monkeypatch):
+        monkeypatch.setattr(Request, "send", fake_send)
         results = []
 
         class TestSpider(MiniSpider):
-            start_urls = ["https://taobao.com"]
+            start_urls = ["https://example.com"]
             max_concurrency = 1
 
             def parse(self, response: Response):
@@ -194,9 +200,9 @@ class TestIntegrationSimple:
         assert spider.stats.item_count == 1
 
 
-@pytest.mark.online
 class TestIntegrationDuplicate:
-    def test_duplicate_filter(self):
+    def test_duplicate_filter(self, monkeypatch):
+        monkeypatch.setattr(Request, "send", fake_send)
         request_count = [0]
 
         class TestSpider(MiniSpider):
@@ -205,7 +211,7 @@ class TestIntegrationDuplicate:
 
             def start_requests(self):
                 for _ in range(5):
-                    yield Request("https://taobao.com", callback=self.parse)
+                    yield Request("https://example.com", callback=self.parse)
 
             def parse(self, response: Response):
                 request_count[0] += 1
@@ -216,13 +222,13 @@ class TestIntegrationDuplicate:
         assert request_count[0] == 1
 
 
-@pytest.mark.online
 class TestIntegrationLifecycle:
-    def test_hooks_called(self):
+    def test_hooks_called(self, monkeypatch):
+        monkeypatch.setattr(Request, "send", fake_send)
         called = []
 
         class TestSpider(MiniSpider):
-            start_urls = ["https://taobao.com"]
+            start_urls = ["https://example.com"]
             max_concurrency = 1
 
             def spider_opened(self):
@@ -242,20 +248,20 @@ class TestIntegrationLifecycle:
         assert called.index("opened") < called.index("closed")
 
 
-@pytest.mark.online
 class TestIntegrationChain:
-    def test_callback_chain(self):
+    def test_callback_chain(self, monkeypatch):
+        monkeypatch.setattr(Request, "send", fake_send)
         results = []
 
         class TestSpider(MiniSpider):
             max_concurrency = 2
 
             def start_requests(self):
-                yield Request("https://taobao.com", callback=self.parse_list)
+                yield Request("https://example.com", callback=self.parse_list)
 
             def parse_list(self, response: Response):
                 results.append("list")
-                yield Request("https://taobao.com", callback=self.parse_detail)
+                yield Request("https://example.com", callback=self.parse_detail)
 
             def parse_detail(self, response: Response):
                 results.append("detail")
@@ -264,3 +270,98 @@ class TestIntegrationChain:
         spider.go()
 
         assert results == ["list", "detail"]
+
+
+class TestIntegrationCallbackModes:
+    def test_async_parse_and_async_process_item(self, monkeypatch):
+        monkeypatch.setattr(Request, "send", fake_send)
+        results = []
+
+        class TestSpider(MiniSpider):
+            start_urls = ["https://example.com"]
+
+            async def parse(self, response: Response):
+                return {"title": response.get_one("//title/text()")}
+
+            async def process_item(self, item):
+                results.append(item)
+
+        spider = TestSpider()
+        spider.go()
+
+        assert results == [{"title": "本地测试页"}]
+        assert spider.stats.item_count == 1
+
+    def test_async_generator_parse(self, monkeypatch):
+        monkeypatch.setattr(Request, "send", fake_send)
+        results = []
+
+        class TestSpider(MiniSpider):
+            start_urls = ["https://example.com"]
+
+            async def parse(self, response: Response):
+                yield {"title": response.get_one("//title/text()")}
+
+            def process_item(self, item):
+                results.append(item)
+
+        spider = TestSpider()
+        spider.go()
+
+        assert results == [{"title": "本地测试页"}]
+
+    def test_request_without_callback_uses_parse(self, monkeypatch):
+        monkeypatch.setattr(Request, "send", fake_send)
+        results = []
+
+        class TestSpider(MiniSpider):
+            def start_requests(self):
+                yield Request("https://example.com")
+
+            def parse(self, response: Response):
+                yield {"title": response.get_one("//title/text()")}
+
+            def process_item(self, item):
+                results.append(item)
+
+        spider = TestSpider()
+        spider.go()
+
+        assert results == [{"title": "本地测试页"}]
+
+    def test_validator_ignore_response_skips_callback(self, monkeypatch):
+        monkeypatch.setattr(Request, "send", fake_send)
+        called = []
+
+        class TestSpider(MiniSpider):
+            start_urls = ["https://example.com"]
+
+            def validator(self, response: Response):
+                raise IgnoreResponse("skip")
+
+            def parse(self, response: Response):
+                called.append("parse")
+
+        spider = TestSpider()
+        spider.go()
+
+        assert called == []
+
+    def test_cancel_still_closes_spider(self, monkeypatch):
+        monkeypatch.setattr(Request, "send", fake_send)
+        called = []
+
+        class TestSpider(MiniSpider):
+            start_urls = ["https://example.com"]
+
+            def parse(self, response: Response):
+                self._handle_sigint(None, None)
+                yield Request("https://example.com/next")
+
+            def spider_closed(self):
+                called.append("closed")
+
+        spider = TestSpider()
+        spider.go()
+
+        assert called == ["closed"]

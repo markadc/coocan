@@ -150,6 +150,25 @@ def test_run_allows_named_indirect_spider_subclass():
         assert "SECOND_GO" in result.output
 
 
+def test_run_detects_coocan_module_base_class():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        with open("demo_spider.py", "w", encoding="utf-8") as f:
+            f.write(
+                "import coocan as cc\n"
+                "class DemoSpider(cc.MiniSpider):\n"
+                "    start_urls = ['https://example.com']\n"
+                "    def parse(self, response):\n"
+                "        return None\n"
+                "DemoSpider.go = lambda self: print('GO_CALLED')\n"
+            )
+
+        result = runner.invoke(main, ["run", "demo_spider.py"])
+
+        assert result.exit_code == 0
+        assert "GO_CALLED" in result.output
+
+
 def test_run_uses_chinese_error_prefix():
     runner = CliRunner()
     with runner.isolated_filesystem():

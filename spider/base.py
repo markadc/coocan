@@ -1,10 +1,11 @@
 import asyncio
 import hashlib
+import inspect
 import json
 import random
 import signal
 import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterable, Iterator
 from dataclasses import dataclass, field
 
 import httpx
@@ -133,18 +134,22 @@ class MiniSpider:
         self.stats = Stats()
         self._seen_urls: set[str] = set()
         self._stop_event: asyncio.Event | None = None
+        self._main_task: asyncio.Task | None = None
         self._clients: dict[str, httpx.AsyncClient] = {}
         self._process_is_async: bool | None = None
 
     @staticmethod
-    def _stable_repr(obj: dict | None) -> str:
-        """对 dict 进行稳定序列化，确保相同内容产生相同字符串。"""
+    def _stable_repr(obj) -> str:
+        """对常见请求参数进行稳定序列化，确保相同内容产生相同字符串。"""
         if obj is None:
             return ""
-        return json.dumps(obj, sort_keys=True, ensure_ascii=False)
+        try:
+            return json.dumps(obj, sort_keys=True, ensure_ascii=False)
+        except TypeError:
+            return repr(obj)
 
     def _get_url_fingerprint(self, request: Request) -> str:
-        """生成 URL 指纹（MD5）用于去重，包含 method/url/params/body。"""
+        """生成请求指纹（MD5）用于去重，包含 method/url/params/body/cookies/proxy。"""
         canonical = "{}:{}:{}:{}:{}".format(
             request._get_method(),
             request.url,
@@ -152,6 +157,10 @@ class MiniSpider:
             self._stable_repr(request.data),
             self._stable_repr(request.json),
         )
+        if request.cookies:
+            canonical += f":cookies:{self._stable_repr(request.cookies)}"
+        if request.proxy:
+            canonical += f":proxy:{request.proxy}"
         return hashlib.md5(canonical.encode()).hexdigest()
 
     def _is_duplicate(self, request: Request) -> bool:
@@ -265,13 +274,47 @@ class MiniSpider:
             request: 触发回调的请求。
             response: 响应对象。
         """
-        logger.error("{} `回调`时出现异常 | {} | {} | {}".format(response.status_code, e, request.callback.__name__, request.url))
+        callback_name = getattr(request.callback, "__name__", None) or self.parse.__name__
+        logger.error("{} `回调`时出现异常 | {} | {} | {}".format(response.status_code, e, callback_name, request.url))
 
     def spider_opened(self) -> None:
         """爬虫启动时调用（在 run() 开头、发送初始请求之前）。"""
 
     def spider_closed(self) -> None:
         """爬虫结束时调用（在所有 worker 退出、客户端关闭之后）。"""
+
+    async def _handle_callback_result(self, result, q1: asyncio.PriorityQueue, q2: asyncio.Queue) -> None:
+        """处理 callback 返回值，支持普通返回、同步迭代器、异步函数和异步迭代器。"""
+        if inspect.isawaitable(result):
+            result = await result
+
+        if result is None:
+            return
+
+        if isinstance(result, AsyncIterator) or hasattr(result, "__aiter__"):
+            async for c in result:
+                await self._enqueue_callback_value(c, q1, q2)
+            return
+
+        if isinstance(result, dict) or isinstance(result, Request):
+            await self._enqueue_callback_value(result, q1, q2)
+            return
+
+        if isinstance(result, Iterable) and not isinstance(result, (str, bytes, bytearray)):
+            for c in result:
+                await self._enqueue_callback_value(c, q1, q2)
+            return
+
+        logger.warning(f"请返回或 yield `Request` / `dict`，而非 {repr(result)}")
+
+    async def _enqueue_callback_value(self, value, q1: asyncio.PriorityQueue, q2: asyncio.Queue) -> None:
+        """将 callback 产物放回请求队列或 item 队列。"""
+        if isinstance(value, Request):
+            await q1.put(value)
+        elif isinstance(value, dict):
+            await q2.put(value)
+        elif value is not None:
+            logger.warning(f"请 yield `Request` 或 `dict`，而非 {repr(value)}")
 
     async def request_task(self, q1: asyncio.PriorityQueue, q2: asyncio.Queue, semaphore: asyncio.Semaphore):
         """工作协程：从请求队列取 Request → 发送 → 校验 → 回调 → yield 新 Request/item。"""
@@ -360,15 +403,9 @@ class MiniSpider:
                     try:
                         if self._stop_event.is_set():
                             break
-                        cached = req.callback(wrapped, **req.cb_kwargs)
-                        if isinstance(cached, (Iterator, list, tuple)):
-                            for c in cached:
-                                if isinstance(c, Request):
-                                    await q1.put(c)  # 把后续请求加入队列
-                                elif isinstance(c, dict):
-                                    await q2.put(c)
-                                else:
-                                    logger.warning(f"请 yield `Request` 或 `dict`，而非 {repr(c)}")
+                        callback = req.callback or self.parse
+                        cached = callback(wrapped, **req.cb_kwargs)
+                        await self._handle_callback_result(cached, q1, q2)
                     except Exception as e:
                         self.handle_callback_exception(e, req, wrapped)
                     finally:
@@ -408,9 +445,8 @@ class MiniSpider:
     async def run(self):
         """启动爬虫主循环（async 入口）。通常通过 ``go()`` 调用。"""
         self._stop_event = asyncio.Event()
+        self._main_task = asyncio.current_task()
         self._process_is_async = asyncio.iscoroutinefunction(self.process_item)
-        self.spider_opened()
-        logger.info(f"爬虫 {self.__class__.__name__} 启动")
 
         request_queue = asyncio.PriorityQueue()
         item_queue = asyncio.Queue()
@@ -419,17 +455,25 @@ class MiniSpider:
         # 请求处理协程数与并发数解耦
         worker_count = self.worker_count or self.max_concurrency * 2
 
-        # 处理请求...
-        request_tasks = [asyncio.create_task(self.request_task(request_queue, item_queue, semaphore)) for _ in range(worker_count)]
-
-        # 处理数据...
-        item_tasks = [asyncio.create_task(self.item_task(item_queue)) for _ in range(self.item_speed)]
-
-        # 发送最开始的请求
-        for req in self.start_requests():
-            await request_queue.put(req)
+        request_tasks = []
+        item_tasks = []
 
         try:
+            self.spider_opened()
+            logger.info(f"爬虫 {self.__class__.__name__} 启动")
+
+            # 处理请求...
+            request_tasks = [asyncio.create_task(self.request_task(request_queue, item_queue, semaphore)) for _ in range(worker_count)]
+
+            # 处理数据...
+            item_tasks = [asyncio.create_task(self.item_task(item_queue)) for _ in range(self.item_speed)]
+
+            # 发送最开始的请求
+            for req in self.start_requests():
+                if req.callback is None:
+                    req.callback = self.parse
+                await request_queue.put(req)
+
             # 等待所有请求处理完成
             await request_queue.join()
             logger.debug("🎉 All requests processed")
@@ -438,37 +482,42 @@ class MiniSpider:
             logger.debug("🎉 All items processed")
         except asyncio.CancelledError:
             logger.warning("⚠️ Spider cancelled")
-            # 取消所有 worker 唤醒阻塞在 get() 上的协程
-            for t in request_tasks + item_tasks:
-                t.cancel()
-            await asyncio.gather(*request_tasks, *item_tasks, return_exceptions=True)
-            await self._close_all_clients()
+            was_stopping = self._stop_event is not None and self._stop_event.is_set()
+            if self._stop_event is not None:
+                self._stop_event.set()
+            if not was_stopping:
+                raise
+        except Exception:
+            if self._stop_event is not None:
+                self._stop_event.set()
             raise
+        finally:
+            if request_tasks or item_tasks:
+                if self._stop_event is not None and self._stop_event.is_set():
+                    for task in request_tasks + item_tasks:
+                        task.cancel()
+                else:
+                    # 发送退出信号，唤醒阻塞在 get() 上的 worker。
+                    logger.debug("Send exit signals")
+                    for _ in range(worker_count):
+                        await request_queue.put(_REQUEST_SENTINEL)
+                    for _ in range(self.item_speed):
+                        await item_queue.put(_ITEM_SENTINEL)
 
-        # 发送退出信号
-        logger.debug("Send exit signals")
-        for _ in range(worker_count):
-            await request_queue.put(_REQUEST_SENTINEL)
-        for _ in range(self.item_speed):
-            await item_queue.put(_ITEM_SENTINEL)
+                all_tasks = request_tasks + item_tasks
+                if all_tasks:
+                    logger.debug("⌛️ Wait workers quit...")
+                    await asyncio.gather(*all_tasks, return_exceptions=True)
+                    logger.debug("🎉 Workers quited")
 
-        # 等待所有工作协程完成
-        logger.debug("⌛️ Wait req coro quit...")
-        await asyncio.gather(*request_tasks)
-        logger.debug("🎉 Req coro quited")
+            logger.debug("⌛️ Close HTTP clients...")
+            await self._close_all_clients()
+            logger.debug("🎉 All HTTP clients closed")
+            self._main_task = None
 
-        logger.debug("⌛️ Wait item coro quit...")
-        await asyncio.gather(*item_tasks)
-        logger.debug("🎉 Item coro quited")
-
-        # 关闭所有 HTTP 客户端
-        logger.debug("⌛️ Close HTTP clients...")
-        await self._close_all_clients()
-        logger.debug("🎉 All HTTP clients closed")
-
-        self.spider_closed()
-        logger.info(self.stats)
-        logger.info(f"✅ {self.__class__.__name__} Finished")
+            self.spider_closed()
+            logger.info(self.stats)
+            logger.info(f"✅ {self.__class__.__name__} Finished")
 
     async def _close_all_clients(self):
         """关闭所有代理专属 HTTP 客户端和全局客户端。"""
@@ -490,7 +539,10 @@ class MiniSpider:
     def _handle_sigint(self, signum, frame) -> None:
         """处理 Ctrl+C 信号，设置停止事件。"""
         logger.warning("收到中断信号，正在优雅退出...")
-        self._stop_event.set()
+        if self._stop_event is not None:
+            self._stop_event.set()
+        if self._main_task is not None and not self._main_task.done():
+            self._main_task.cancel()
 
     def go(self) -> None:
         """启动爬虫的同步入口。注册 SIGINT 处理器以支持 Ctrl+C 优雅退出。"""

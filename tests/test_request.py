@@ -4,6 +4,7 @@ import asyncio
 import time
 
 import pytest
+import httpx
 
 from coocan.url.request import Request, close_client, get_client
 
@@ -117,45 +118,81 @@ class TestRequestPriorityQueue:
         assert second.url == "https://b.com"
 
 
-@pytest.mark.online
 class TestRequestSend:
     @pytest.mark.asyncio
     async def test_get(self):
-        req = Request("https://httpbin.org/get", timeout=10)
-        resp = await req.send()
+        client = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200, text="ok", request=request)))
+        req = Request("https://example.com/get", timeout=10)
+        resp = await req.send(client)
+        await client.aclose()
         assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_post_data(self):
-        req = Request("https://httpbin.org/post", data={"key": "value"}, timeout=10)
-        resp = await req.send()
+        seen = {}
+
+        def handler(request):
+            seen["body"] = request.content
+            return httpx.Response(200, request=request)
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        req = Request("https://example.com/post", data={"key": "value"}, timeout=10)
+        resp = await req.send(client)
+        await client.aclose()
         assert resp.status_code == 200
+        assert seen["body"] == b"key=value"
 
     @pytest.mark.asyncio
     async def test_post_json(self):
-        req = Request("https://httpbin.org/post", json={"key": "value"}, timeout=10)
-        resp = await req.send()
+        seen = {}
+
+        def handler(request):
+            seen["body"] = request.content
+            return httpx.Response(200, json={"json": {"key": "value"}}, request=request)
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        req = Request("https://example.com/post", json={"key": "value"}, timeout=10)
+        resp = await req.send(client)
+        await client.aclose()
         assert resp.status_code == 200
         data = resp.json()
         assert data["json"] == {"key": "value"}
+        assert seen["body"] == b'{"key":"value"}'
 
     @pytest.mark.asyncio
     async def test_with_headers(self):
+        seen = {}
+
+        def handler(request):
+            seen["header"] = request.headers["X-Custom-Header"]
+            return httpx.Response(200, json={"headers": {"X-Custom-Header": seen["header"]}}, request=request)
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         req = Request(
-            "https://httpbin.org/headers",
+            "https://example.com/headers",
             headers={"X-Custom-Header": "test-value"},
             timeout=10,
         )
-        resp = await req.send()
+        resp = await req.send(client)
+        await client.aclose()
         data = resp.json()
         assert data["headers"]["X-Custom-Header"] == "test-value"
 
     @pytest.mark.asyncio
     async def test_with_params(self):
-        req = Request("https://httpbin.org/get", params={"foo": "bar"}, timeout=10)
-        resp = await req.send()
+        seen = {}
+
+        def handler(request):
+            seen["url"] = str(request.url)
+            return httpx.Response(200, json={"args": {"foo": request.url.params["foo"]}}, request=request)
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        req = Request("https://example.com/get", params={"foo": "bar"}, timeout=10)
+        resp = await req.send(client)
+        await client.aclose()
         data = resp.json()
         assert data["args"]["foo"] == "bar"
+        assert seen["url"] == "https://example.com/get?foo=bar"
 
     @pytest.fixture(autouse=True)
     async def cleanup_client(self):
@@ -175,4 +212,12 @@ class TestClientManagement:
         await close_client()
         new_client = get_client()
         assert new_client is not None
+        await close_client()
+
+    @pytest.mark.asyncio
+    async def test_limits_get_separate_clients(self):
+        await close_client()
+        client1 = get_client(httpx.Limits(max_connections=1))
+        client2 = get_client(httpx.Limits(max_connections=2))
+        assert client1 is not client2
         await close_client()
