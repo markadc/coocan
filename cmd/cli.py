@@ -1,3 +1,4 @@
+import ast
 import hashlib
 import importlib.util
 import inspect
@@ -92,6 +93,62 @@ def load_module_from_file(file: Path):
         raise CoocanClickException(f"加载爬虫文件失败: {type(e).__name__}: {e}")
 
     return module
+
+
+def _base_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.Subscript):
+        return _base_name(node.value)
+    return None
+
+
+def find_static_spider_class_names(file: Path):
+    """导入前静态查找直接继承 MiniSpider 的类，避免误执行普通脚本。"""
+    try:
+        text = file.read_text(encoding="utf-8")
+        tree = ast.parse(text, filename=str(file))
+    except SyntaxError as e:
+        detail = f"{e.filename}:{e.lineno}" if e.filename and e.lineno else str(file)
+        raise CoocanClickException(f"语法错误: {detail} {e.msg}")
+    except OSError as e:
+        raise CoocanClickException(f"读取文件失败: {e}")
+
+    minispider_names = {"MiniSpider"}
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module in {"coocan", "coocan.spider.base"}:
+            for alias in node.names:
+                if alias.name == "MiniSpider":
+                    minispider_names.add(alias.asname or alias.name)
+
+    classes = [node for node in tree.body if isinstance(node, ast.ClassDef)]
+    spider_names = set(minispider_names)
+    found_names = []
+
+    changed = True
+    while changed:
+        changed = False
+        for node in classes:
+            if node.name in spider_names:
+                continue
+            if any(_base_name(base) in spider_names for base in node.bases):
+                spider_names.add(node.name)
+                found_names.append(node.name)
+                changed = True
+
+    return found_names
+
+
+def ensure_static_spider_classes(file: Path, name: str | None = None):
+    spider_names = find_static_spider_class_names(file)
+    if not spider_names:
+        raise CoocanClickException(f"未在 {file} 中找到 MiniSpider 子类")
+    if name and name not in spider_names:
+        available = ", ".join(spider_names)
+        raise CoocanClickException(f"未找到类 '{name}'，可用类: {available}")
+    return spider_names
 
 
 def find_spider_classes(module):
@@ -262,6 +319,7 @@ def new(spider: str):
 def run(file: Path, name: str | None):
     """运行爬虫文件。"""
     click.secho(f"加载爬虫文件: {file}", fg="cyan")
+    ensure_static_spider_classes(file, name)
     module = load_module_from_file(file)
     spiders = find_spider_classes(module)
     if not spiders:
@@ -298,6 +356,7 @@ def ua(count: int):
 @click.argument("file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 def check(file: Path):
     """检查爬虫文件配置。"""
+    ensure_static_spider_classes(file)
     module = load_module_from_file(file)
     spiders = find_spider_classes(module)
 

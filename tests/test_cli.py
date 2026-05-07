@@ -1,5 +1,7 @@
 """测试命令行工具"""
 
+from pathlib import Path
+
 from click.testing import CliRunner
 
 from coocan.cmd.cli import main
@@ -126,6 +128,28 @@ def test_run_requires_name_for_multiple_spiders():
         assert "SecondSpider" in result.output
 
 
+def test_run_allows_named_indirect_spider_subclass():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        with open("demo_spider.py", "w", encoding="utf-8") as f:
+            f.write(
+                "from coocan import MiniSpider, Response\n"
+                "class FirstSpider(MiniSpider):\n"
+                "    start_urls = ['https://example.com']\n"
+                "    def parse(self, response: Response):\n"
+                "        return None\n"
+                "class SecondSpider(FirstSpider):\n"
+                "    pass\n"
+                "SecondSpider.go = lambda self: print('SECOND_GO')\n"
+            )
+
+        result = runner.invoke(main, ["run", "demo_spider.py", "-n", "SecondSpider"])
+
+        assert result.exit_code == 0
+        assert "指定运行类: SecondSpider" in result.output
+        assert "SECOND_GO" in result.output
+
+
 def test_run_uses_chinese_error_prefix():
     runner = CliRunner()
     with runner.isolated_filesystem():
@@ -137,6 +161,24 @@ def test_run_uses_chinese_error_prefix():
         assert result.exit_code != 0
         assert "错误: 未在 empty.py 中找到 MiniSpider 子类" in result.output
         assert "Error:" not in result.output
+
+
+def test_run_does_not_execute_file_without_static_spider():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        with open("p2.py", "w", encoding="utf-8") as f:
+            f.write(
+                "print('SHOULD_NOT_RUN')\n"
+                "with open('side_effect.txt', 'w', encoding='utf-8') as fp:\n"
+                "    fp.write('bad')\n"
+            )
+
+        result = runner.invoke(main, ["run", "p2.py"])
+
+        assert result.exit_code != 0
+        assert "错误: 未在 p2.py 中找到 MiniSpider 子类" in result.output
+        assert "SHOULD_NOT_RUN" not in result.output
+        assert not Path("side_effect.txt").exists()
 
 
 def test_run_styles_chinese_error_prefix_red():
@@ -167,6 +209,24 @@ def test_check_rejects_file_without_spider():
 
         assert result.exit_code != 0
         assert "错误: 未在 empty.py 中找到 MiniSpider 子类" in result.output
+
+
+def test_check_does_not_execute_file_without_static_spider():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        with open("p2.py", "w", encoding="utf-8") as f:
+            f.write(
+                "print('SHOULD_NOT_RUN')\n"
+                "with open('side_effect.txt', 'w', encoding='utf-8') as fp:\n"
+                "    fp.write('bad')\n"
+            )
+
+        result = runner.invoke(main, ["check", "p2.py"])
+
+        assert result.exit_code != 0
+        assert "错误: 未在 p2.py 中找到 MiniSpider 子类" in result.output
+        assert "SHOULD_NOT_RUN" not in result.output
+        assert not Path("side_effect.txt").exists()
 
 
 def test_check_rejects_invalid_spider_config():
