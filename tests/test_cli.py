@@ -13,7 +13,7 @@ def test_new_creates_spider_file():
         result = runner.invoke(main, ["new", "-s", "my_spider"])
 
         assert result.exit_code == 0
-        assert "Success create my_spider.py" in result.output
+        assert "成功创建 my_spider.py" in result.output
 
 
 def test_new_preserves_existing_word_case_in_class_name():

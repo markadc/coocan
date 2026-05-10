@@ -2,34 +2,14 @@ import ast
 import hashlib
 import importlib.util
 import inspect
-import re
 import sys
 from pathlib import Path
 
 import click
 
-try:
-    from importlib.metadata import version as get_version
-except ImportError:
-    from importlib_metadata import version as get_version
+from . import __version__
 
-try:
-    __version__ = get_version("coocan")
-except Exception:
-    # 开发环境未安装时，从 pyproject.toml 读取
-    _pyproject = Path(__file__).parent.parent.parent / "pyproject.toml"
-    if _pyproject.exists():
-        with open(_pyproject, "r", encoding="utf-8") as f:
-            _text = f.read()
-        _m = re.search(r'^version = "([^"]+)"', _text, re.M)
-        __version__ = _m.group(1) if _m else "unknown"
-    else:
-        __version__ = "unknown"
-
-from coocan.gen import gen_random_ua
 from coocan.spider.base import MiniSpider
-
-TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
 help_info = """
  ██████╗ ██████╗  ██████╗  ██████╗ █████╗ ███╗   ██╗
@@ -73,24 +53,17 @@ def load_module_from_file(file: Path):
     try:
         spec.loader.exec_module(module)
     except SyntaxError as e:
-        if had_old_module:
-            sys.modules[module_name] = old_module
-        else:
-            sys.modules.pop(module_name, None)
         detail = f"{e.filename}:{e.lineno}" if e.filename and e.lineno else str(file)
         raise CoocanClickException(f"语法错误: {detail} {e.msg}")
     except ImportError as e:
-        if had_old_module:
-            sys.modules[module_name] = old_module
-        else:
-            sys.modules.pop(module_name, None)
         raise CoocanClickException(f"导入失败: {e}")
     except Exception as e:
+        raise CoocanClickException(f"加载爬虫文件失败: {type(e).__name__}: {e}")
+    finally:
         if had_old_module:
             sys.modules[module_name] = old_module
         else:
             sys.modules.pop(module_name, None)
-        raise CoocanClickException(f"加载爬虫文件失败: {type(e).__name__}: {e}")
 
     return module
 
@@ -193,6 +166,36 @@ def select_spider_class(spiders, name: str | None):
     raise CoocanClickException("需要指定爬虫类名")
 
 
+def _is_valid_positive_int(value):
+    """拒绝 bool（它是 int 的子类），要求正整数。"""
+    if isinstance(value, bool):
+        return False
+    return isinstance(value, int) and value >= 1
+
+
+def _validate_delay(delay):
+    """检查 delay 字段，返回 (kind, message) 其中 kind 为 'warn' 或 'info'。"""
+    if isinstance(delay, tuple):
+        if (
+            len(delay) != 2
+            or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in delay)
+            or delay[0] < 0
+            or delay[1] < delay[0]
+        ):
+            return "warn", f"delay={delay} 格式不合法"
+        return "info", ("delay", f"随机 {delay[0]}~{delay[1]}s")
+
+    if isinstance(delay, bool):
+        return "warn", f"delay 类型不合法: {delay}"
+
+    if isinstance(delay, (int, float)):
+        if delay < 0:
+            return "warn", f"delay={delay} 应为非负数"
+        return "info", ("delay", f"{delay}s")
+
+    return "warn", f"delay 类型不合法: {delay}"
+
+
 def validate_spider_class(cls):
     errors = []
     warnings = []
@@ -218,35 +221,21 @@ def validate_spider_class(cls):
     else:
         infos.append(("parse", "已实现"))
 
-    if isinstance(cls.max_concurrency, bool) or not isinstance(cls.max_concurrency, int) or cls.max_concurrency < 1:
-        warnings.append(f"max_concurrency={cls.max_concurrency} 应为正整数")
-    else:
+    if _is_valid_positive_int(cls.max_concurrency):
         infos.append(("max_concurrency", str(cls.max_concurrency)))
-
-    if isinstance(cls.delay, tuple):
-        if (
-            len(cls.delay) != 2
-            or any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in cls.delay)
-            or cls.delay[0] < 0
-            or cls.delay[1] < cls.delay[0]
-        ):
-            warnings.append(f"delay={cls.delay} 格式不合法")
-        else:
-            infos.append(("delay", f"随机 {cls.delay[0]}~{cls.delay[1]}s"))
-    elif isinstance(cls.delay, bool):
-        warnings.append(f"delay 类型不合法: {cls.delay}")
-    elif isinstance(cls.delay, (int, float)):
-        if cls.delay < 0:
-            warnings.append(f"delay={cls.delay} 应为非负数")
-        else:
-            infos.append(("delay", f"{cls.delay}s"))
     else:
-        warnings.append(f"delay 类型不合法: {cls.delay}")
+        warnings.append(f"max_concurrency={cls.max_concurrency} 应为正整数")
 
-    if isinstance(cls.item_speed, bool) or not isinstance(cls.item_speed, int) or cls.item_speed < 1:
-        warnings.append(f"item_speed={cls.item_speed} 应为正整数")
+    delay_result = _validate_delay(cls.delay)
+    if delay_result[0] == "warn":
+        warnings.append(delay_result[1])
     else:
+        infos.append(delay_result[1])
+
+    if _is_valid_positive_int(cls.item_speed):
         infos.append(("item_speed", str(cls.item_speed)))
+    else:
+        warnings.append(f"item_speed={cls.item_speed} 应为正整数")
 
     return errors, warnings, infos
 
@@ -276,10 +265,6 @@ def print_validation_result(cls, *, heading_color: str | None = None):
     return errors, warnings
 
 
-def print_spider_validation(cls):
-    return print_validation_result(cls)
-
-
 @click.version_option(version=__version__, prog_name="coocan")
 @click.group(invoke_without_command=True)
 @click.pass_context
@@ -290,94 +275,16 @@ def main(ctx):
         click.echo(f"coocan version {__version__}")
 
 
-@main.command()
-@click.option("-s", "--spider", required=True, help="爬虫文件名字")
-def new(spider: str):
-    """新建"""
-    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", spider):
-        raise CoocanClickException("只支持字母、数字、下划线，且不能以数字开头")
+# 注册子命令
+from .check import check  # noqa: E402
+from .new import new  # noqa: E402
+from .run import run  # noqa: E402
+from .ua import ua  # noqa: E402
 
-    spider_class_name = snake_to_pascal(spider)
-    if not spider_class_name.lower().endswith("spider"):
-        spider_class_name += "Spider"
-
-    py_file = Path(f"{spider}.py")
-    if py_file.exists():
-        raise CoocanClickException(f"Failed because file {py_file} already exists")
-
-    try:
-        template_path = TEMPLATE_DIR / "spider.txt"
-        with open(template_path, "r", encoding="utf-8") as f:
-            text = f.read()
-            spider_py_text = text.replace("{SpiderClassName}", spider_class_name)
-
-        with open(py_file, "w", encoding="utf-8") as f:
-            f.write(spider_py_text)
-
-    except Exception as e:
-        raise CoocanClickException(f"Failed: {e}")
-
-    click.secho(f"✅ Success create {py_file}", fg="green")
-
-
-@main.command()
-@click.argument("file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
-@click.option("-n", "--name", help="指定要运行的爬虫类名（文件中存在多个爬虫类时使用）")
-def run(file: Path, name: str | None):
-    """运行爬虫文件。"""
-    click.secho(f"加载爬虫文件: {file}", fg="cyan")
-    ensure_static_spider_classes(file, name)
-    module = load_module_from_file(file)
-    spiders = find_spider_classes(module)
-    if not spiders:
-        raise CoocanClickException(f"未在 {file} 中找到 MiniSpider 子类")
-
-    spider_cls = select_spider_class(spiders, name)
-
-    # 前置检查
-    errors, _ = print_validation_result(spider_cls, heading_color="cyan")
-    if errors:
-        raise CoocanClickException("前置检查未通过")
-
-    instance = spider_cls()
-
-    click.secho(f"运行 {spider_cls.__name__}...", fg="green")
-    instance.go()
-
-
-@main.command()
-@click.option(
-    "-n",
-    "--count",
-    default=1,
-    type=click.IntRange(1, 100),
-    help="生成数量（默认 1，最大 100）",
-)
-def ua(count: int):
-    """生成随机 User-Agent。"""
-    for _ in range(count):
-        click.echo(gen_random_ua())
-
-
-@main.command()
-@click.argument("file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
-def check(file: Path):
-    """检查爬虫文件配置。"""
-    ensure_static_spider_classes(file)
-    module = load_module_from_file(file)
-    spiders = find_spider_classes(module)
-
-    if not spiders:
-        raise CoocanClickException(f"未在 {file} 中找到 MiniSpider 子类")
-
-    total_errors = 0
-    for cls in spiders:
-        errors, _ = print_spider_validation(cls)
-        total_errors += len(errors)
-
-    if total_errors:
-        raise CoocanClickException(f"检查未通过，共 {total_errors} 个错误")
-
+main.add_command(new)
+main.add_command(run)
+main.add_command(ua)
+main.add_command(check)
 
 if __name__ == "__main__":
     main()
