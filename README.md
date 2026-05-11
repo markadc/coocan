@@ -48,7 +48,10 @@ pip install -U coocan
 
 ## 运行示例
 
-`python examples/hn_hot_list.py`
+```bash
+python examples/hn_hot_list.py
+```
+
 ![运行爬虫](coocan-run.png)
 
 ## 🚀 快速开始
