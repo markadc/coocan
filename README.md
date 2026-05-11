@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="LOGO.png" alt="Coocan Logo" width="160">
+
 # Coocan
 
 **🚀 轻量级异步爬虫框架**
