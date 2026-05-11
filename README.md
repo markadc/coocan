@@ -14,7 +14,7 @@
 [示例](#-示例) •
 [文档](#-文档)
 
-![Demo](demo.gif)
+![Demo](run_example.gif)
 
 </div>
 
@@ -115,23 +115,23 @@ coocan run my_spider.py
 
 ### 核心功能
 
-| 功能           | 说明                                    |
-| -------------- | --------------------------------------- |
-| **异步请求**   | 基于 httpx 的异步 HTTP 客户端           |
-| **智能重试**   | 自动重试失败的请求                      |
-| **优先级队列** | 支持请求优先级控制                      |
-| **代理支持**   | 轻松配置 HTTP/HTTPS 代理                |
-| **请求延迟**   | 支持固定延迟或随机延迟范围              |
-| **随机 UA**    | 自动随机 User-Agent                     |
-| **中间件**     | 支持请求预处理                          |
-| **数据管道**   | `process_item` 方法处理爬取数据         |
-| **异常处理**   | 完善的异常处理机制                      |
-| **选择器**     | 内置 XPath 和 CSS 选择器                |
-| **爬取统计**   | 自动统计请求成功/失败次数、耗时等       |
-| **URL 去重**   | 可选的 URL 去重功能，避免重复请求       |
-| **生命周期**   | `spider_opened` / `spider_closed` 钩子  |
-| **优雅退出**   | 支持 Ctrl+C 优雅退出                    |
-| **多 HTTP 方法** | 支持 GET/POST/PUT/DELETE/PATCH 等     |
+| 功能             | 说明                                   |
+| ---------------- | -------------------------------------- |
+| **异步请求**     | 基于 httpx 的异步 HTTP 客户端          |
+| **智能重试**     | 自动重试失败的请求                     |
+| **优先级队列**   | 支持请求优先级控制                     |
+| **代理支持**     | 轻松配置 HTTP/HTTPS 代理               |
+| **请求延迟**     | 支持固定延迟或随机延迟范围             |
+| **随机 UA**      | 自动随机 User-Agent                    |
+| **中间件**       | 支持请求预处理                         |
+| **数据管道**     | `process_item` 方法处理爬取数据        |
+| **异常处理**     | 完善的异常处理机制                     |
+| **选择器**       | 内置 XPath 和 CSS 选择器               |
+| **爬取统计**     | 自动统计请求成功/失败次数、耗时等      |
+| **URL 去重**     | 可选的 URL 去重功能，避免重复请求      |
+| **生命周期**     | `spider_opened` / `spider_closed` 钩子 |
+| **优雅退出**     | 支持 Ctrl+C 优雅退出                   |
+| **多 HTTP 方法** | 支持 GET/POST/PUT/DELETE/PATCH 等      |
 
 ### 类属性配置
 
@@ -189,8 +189,9 @@ class ProxySpider(MiniSpider):
         print(response.text)
 ```
 
-更多示例请查看 [`coocan/_examples/`](coocan/_examples/) 目录：
+更多示例请查看 [`examples/`](examples/) 目录：
 
+- `hn_hot_list.py` - Hacker News 热榜示例
 - `crawl_csdn_list.py` - 爬取 CSDN 文章列表
 - `crawl_csdn_detail.py` - 爬取 CSDN 文章详情
 - `recv_item.py` - 数据处理示例
@@ -443,6 +444,13 @@ coocan --help
 
 ## 📝 更新日志
 
+### v0.9.2.1 (2026-5-11)
+
+- ✨ **项目结构整理** - CLI 模块迁移到 `coocan.cmds`，请求模块迁移到 `coocan.req`
+- ✨ **示例目录统一** - 示例代码集中到 `examples/`，测试目录只保留 pytest 用例
+- ✨ **模板内聚到 CLI** - `coocan new` 使用的模板移动到 `coocan.cmds.tmpls`
+- 🖼️ **README 展示图更新** - 顶部运行演示图更新为 `run_example.gif`
+
 ### v0.9.1 (2026-5-7)
 
 - ✨ **异步回调支持增强** - `parse` / 自定义 callback 支持 `async def`、异步生成器、直接返回 `dict` 或 `Request`
@@ -465,7 +473,7 @@ coocan --help
 
 ### v0.8.1 (2025-4-24)
 
-- ✨ **CLI 版本展示** - `coocan` 命令直接展示版本号「coocan version x.x.x」
+- ✨ **CLI 版本展示** - `coocan` 命令直接展示版本号「Coocan Version x.x.x」
 - ✨ **`coocan --version`** - 支持 `--version` 参数查看版本
 
 ### v0.8.0 (2025-4-24)
@@ -497,7 +505,7 @@ coocan --help
 ### v0.5.0 (2025-4-28)
 
 - ✨ 新增 `process_item` 方法，用于处理数据
-  - 示例代码位于 `coocan/_examples/recv_item.py`
+  - 示例代码位于 `examples/recv_item.py`
 
 ### v0.4.0 (2025-4-25)
 

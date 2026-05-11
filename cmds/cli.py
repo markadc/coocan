@@ -19,7 +19,7 @@ def main(ctx):
     if ctx.invoked_subcommand is None:
         print(help_info)
         click.echo("coocan new -s <spider_file_name>")
-        click.echo(f"coocan version {__version__}")
+        click.echo(f"Coocan Version {__version__}")
 
 
 # 注册子命令
