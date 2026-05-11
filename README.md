@@ -61,7 +61,7 @@ python examples/hn_hot_list.py
 使用命令行工具快速生成爬虫模板：
 
 ```bash
-coocan new -s my_spider
+coocan new -s test_spider
 ```
 
 ![新建爬虫](new-s.png)
@@ -69,50 +69,34 @@ coocan new -s my_spider
 ### 2. 编写爬虫代码
 
 ```python
-from coocan import MiniSpider, Request
-from loguru import logger
+from coocan import Request, Response, MiniSpider
 
 
-class MySpider(MiniSpider):
-    # 起始 URL 列表
-    start_urls = ["https://example.com"]
-
-    # 最大并发请求数
+class TestSpider(MiniSpider):
+    start_urls = ["https://github.com/markadc/coocan"]
     max_concurrency = 10
 
-    def parse(self, response):
-        """解析响应"""
-        # 使用 CSS 选择器提取数据
-        titles = response.css('h1::text').getall()
+    def middleware(self, request: Request):
+        request.headers["Referer"] = "https://github.com"
 
-        # 使用 XPath 提取数据
-        links = response.xpath('//a/@href').getall()
-
-        for title, link in zip(titles, links):
-            logger.info(f"Title: {title}, Link: {link}")
-
-            # 发起新请求
-            yield Request(link, callback=self.parse_detail)
-
-    def parse_detail(self, response):
-        """解析详情页"""
-        content = response.css('.content::text').get()
-        logger.success(f"Content: {content}")
+    def parse(self, response: Response):
+        print(response.status_code)
+        print(response.get_one("//title/text()"))
 
 
 if __name__ == '__main__':
-    spider = MySpider()
-    spider.go()
+    s = TestSpider()
+    s.go()
 ```
 
 ### 3. 运行爬虫
 
 ```bash
-# 直接运行
-python my_spider.py
+# 直接运行（需要手动调用 `go` 方法）
+python test_spider.py
 
-# 或使用 CLI 工具
-coocan run my_spider.py
+# 或使用 CLI 工具（自动调用 `go` 方法运行）
+coocan run test_spider.py
 ```
 
 ---
