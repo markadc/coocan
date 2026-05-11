@@ -5,7 +5,7 @@ from pathlib import Path
 
 import click
 
-from .cli import CoocanClickException, snake_to_pascal
+from .utils import CoocanClickException, snake_to_pascal
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
@@ -23,7 +23,7 @@ def new(spider: str):
 
     py_file = Path(f"{spider}.py")
     if py_file.exists():
-        raise CoocanClickException(f"Failed because file {py_file} already exists")
+        raise CoocanClickException(f"文件已存在: {py_file}")
 
     try:
         template_path = TEMPLATE_DIR / "spider.txt"
@@ -35,6 +35,6 @@ def new(spider: str):
             f.write(spider_py_text)
 
     except Exception as e:
-        raise CoocanClickException(f"Failed: {e}")
+        raise CoocanClickException(f"创建失败: {e}")
 
     click.secho(f"成功创建 {py_file}", fg="green")

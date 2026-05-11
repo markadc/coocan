@@ -4,11 +4,9 @@ from pathlib import Path
 
 import click
 
-from .cli import (
+from .utils import (
     CoocanClickException,
-    ensure_static_spider_classes,
-    find_spider_classes,
-    load_module_from_file,
+    load_spider_classes,
     print_validation_result,
     select_spider_class,
 )
@@ -20,16 +18,7 @@ from .cli import (
 def run(file: Path, name: str | None):
     """运行爬虫文件。"""
     click.secho(f"加载爬虫文件: {file}", fg="cyan")
-    static_names = ensure_static_spider_classes(file, name)
-    module = load_module_from_file(file)
-    spiders = find_spider_classes(module)
-    runtime_names = {c.__name__ for c in spiders}
-    unexpected = runtime_names - set(static_names)
-    if unexpected:
-        click.secho(f"警告: 运行时发现静态分析未检测到的类: {', '.join(sorted(unexpected))}", fg="yellow")
-    if not spiders:
-        raise CoocanClickException(f"未在 {file} 中找到 MiniSpider 子类")
-
+    spiders = load_spider_classes(file, name)
     spider_cls = select_spider_class(spiders, name)
 
     # 前置检查

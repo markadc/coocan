@@ -40,7 +40,7 @@ def test_new_rejects_existing_file():
         result = runner.invoke(main, ["new", "-s", "my_spider"])
 
         assert result.exit_code != 0
-        assert "already exists" in result.output
+        assert "文件已存在: my_spider.py" in result.output
 
 
 def test_run_allows_custom_start_requests_without_start_urls():
@@ -200,6 +200,50 @@ def test_run_does_not_execute_file_without_static_spider():
         assert not Path("side_effect.txt").exists()
 
 
+def test_run_does_not_trust_unimported_minispider_name():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        with open("p2.py", "w", encoding="utf-8") as f:
+            f.write(
+                "print('SHOULD_NOT_RUN')\n"
+                "with open('side_effect.txt', 'w', encoding='utf-8') as fp:\n"
+                "    fp.write('bad')\n"
+                "class DemoSpider(MiniSpider):\n"
+                "    pass\n"
+            )
+
+        result = runner.invoke(main, ["run", "p2.py"])
+
+        assert result.exit_code != 0
+        assert "错误: 未在 p2.py 中找到 MiniSpider 子类" in result.output
+        assert "SHOULD_NOT_RUN" not in result.output
+        assert not Path("side_effect.txt").exists()
+
+
+def test_run_allows_local_import_next_to_spider_file():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        spider_dir = Path("spiders")
+        spider_dir.mkdir()
+        with open(spider_dir / "settings.py", "w", encoding="utf-8") as f:
+            f.write("START_URL = 'https://example.com'\n")
+        with open(spider_dir / "demo_spider.py", "w", encoding="utf-8") as f:
+            f.write(
+                "from coocan import MiniSpider, Response\n"
+                "from settings import START_URL\n"
+                "class DemoSpider(MiniSpider):\n"
+                "    start_urls = [START_URL]\n"
+                "    def parse(self, response: Response):\n"
+                "        return None\n"
+                "DemoSpider.go = lambda self: print('GO_CALLED')\n"
+            )
+
+        result = runner.invoke(main, ["run", "spiders/demo_spider.py"])
+
+        assert result.exit_code == 0
+        assert "GO_CALLED" in result.output
+
+
 def test_run_styles_chinese_error_prefix_red():
     runner = CliRunner()
     with runner.isolated_filesystem():
@@ -264,6 +308,35 @@ def test_check_rejects_invalid_spider_config():
         assert "start_urls 为空，且 start_requests 未覆写" in result.output
         assert "parse 方法未实现" in result.output
         assert "检查未通过，共 2 个错误" in result.output
+
+
+def test_check_rejects_runtime_unsafe_spider_config():
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        with open("bad_spider.py", "w", encoding="utf-8") as f:
+            f.write(
+                "from coocan import MiniSpider, Response\n"
+                "class BadSpider(MiniSpider):\n"
+                "    start_urls = ['https://example.com']\n"
+                "    max_concurrency = 0\n"
+                "    item_speed = 0\n"
+                "    worker_count = 0\n"
+                "    max_retry_times = -1\n"
+                "    retry_backoff_base = -1\n"
+                "    retry_backoff_max = -1\n"
+                "    def parse(self, response: Response):\n"
+                "        return None\n"
+            )
+
+        result = runner.invoke(main, ["check", "bad_spider.py"])
+
+        assert result.exit_code != 0
+        assert "max_concurrency=0 应为正整数" in result.output
+        assert "item_speed=0 应为正整数" in result.output
+        assert "worker_count=0 应为正整数或 None" in result.output
+        assert "max_retry_times=-1 应为非负整数" in result.output
+        assert "retry_backoff_base=-1 应为非负数" in result.output
+        assert "retry_backoff_max=-1 应为非负数" in result.output
 
 
 def test_check_accepts_valid_spider_config():
