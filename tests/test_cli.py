@@ -4,7 +4,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from coocan.cmd.cli import main
+from coocan.cmds.cli import main
 
 
 def test_new_creates_spider_file():

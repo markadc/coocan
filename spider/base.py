@@ -12,7 +12,7 @@ import httpx
 from loguru import logger
 
 from coocan.gen import gen_random_ua
-from coocan.url import Request, Response, close_client, get_client
+from coocan.req import Request, Response, close_client, get_client
 
 _REQUEST_SENTINEL = Request(url="__sentinel__", priority=float("inf"))
 _ITEM_SENTINEL = object()

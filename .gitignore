@@ -46,3 +46,4 @@ venv/
 
 # Tools
 p2.py
+pyproject.toml

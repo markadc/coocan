@@ -6,7 +6,7 @@ import time
 import pytest
 import httpx
 
-from coocan.url.request import Request, close_client, get_client
+from coocan.req.request import Request, close_client, get_client
 
 
 class TestRequestInit:

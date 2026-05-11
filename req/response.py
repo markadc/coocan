@@ -4,7 +4,7 @@ from typing import Any
 from httpx import Headers, Response
 from parsel import Selector, SelectorList
 
-from coocan.url.errs import ResponseCodeError, ResponseTextError
+from coocan.req.errs import ResponseCodeError, ResponseTextError
 
 
 class SelectorResponse:

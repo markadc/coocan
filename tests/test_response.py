@@ -3,8 +3,8 @@
 import httpx
 import pytest
 
-from coocan.url.errs import ResponseCodeError, ResponseTextError
-from coocan.url.response import SelectorResponse
+from coocan.req.errs import ResponseCodeError, ResponseTextError
+from coocan.req.response import SelectorResponse
 
 HTML = """
 <html>

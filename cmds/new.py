@@ -7,7 +7,7 @@ import click
 
 from .utils import CoocanClickException, snake_to_pascal
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
+TEMPLATE_DIR = Path(__file__).parent / "tmpls"
 
 
 @click.command(help="从模板新建爬虫文件。")
