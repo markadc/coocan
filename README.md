@@ -14,8 +14,6 @@
 [示例](#-示例) •
 [文档](#-文档)
 
-![Demo](run_example.gif)
-
 </div>
 
 ---
@@ -48,6 +46,11 @@ pip install -U coocan
 
 ---
 
+## 运行示例
+
+`python examples/hn_hot_list.py`
+![运行爬虫](coocan-run.png)
+
 ## 🚀 快速开始
 
 ### 1. 创建爬虫
@@ -58,7 +61,7 @@ pip install -U coocan
 coocan new -s my_spider
 ```
 
-![命令行工具](cmd.png)
+![新建爬虫](new-s.png)
 
 ### 2. 编写爬虫代码
 
